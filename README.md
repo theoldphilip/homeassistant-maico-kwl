@@ -1,4 +1,4 @@
-# Maico WS 300 Flat – Home Assistant Integration
+# Maico Lüftungsanlagen – Home Assistant Integration
 
 Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** (oder anderer Maico) Lüftungsanlage (KWL) über Modbus TCP.
 
