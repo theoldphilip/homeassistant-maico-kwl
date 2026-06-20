@@ -1,0 +1,26 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Setup Maico WS 300 Flat",
+        "description": "Konfiguriere deine Maico WS 300 Flat Lüftungsanlage",
+        "data": {
+          "host": "IP-Adresse",
+          "filter_warning_days": "Filterwechsel-Warnung (Tage)"
+        },
+        "data_description": {
+          "host": "IP-Adresse der Maico WS 300 Flat Lüftungsanlage",
+          "filter_warning_days": "Warnung auslösen, wenn Zuluftfilter ≤ X Tage Restlaufzeit"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Gerät fehlgeschlagen",
+      "invalid_auth": "Ungültige Authentifizierung",
+      "unknown": "Unbekannter Fehler"
+    },
+    "abort": {
+      "already_configured": "Gerät ist bereits konfiguriert"
+    }
+  }
+}
