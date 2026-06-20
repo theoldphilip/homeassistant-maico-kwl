@@ -1,6 +1,6 @@
 # Maico WS 300 Flat – Home Assistant Integration
 
-Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** Lüftungsanlage (KWL) über Modbus TCP.
+Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** (oder anderer Maico) Lüftungsanlage (KWL) über Modbus TCP.
 
 Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig.
 
@@ -114,7 +114,7 @@ Temperaturen werden als `int16` mit Faktor 0,1 gelesen.
 ## Voraussetzungen
 
 - Home Assistant 2024.1.0 oder neuer
-- Maico WS 300 Flat mit aktiviertem Modbus TCP, erreichbar im Netzwerk
+- Maico (bspw. 300 Flat) mit aktiviertem Modbus TCP, erreichbar im Netzwerk
 
 ## Haftungsausschluss
 
