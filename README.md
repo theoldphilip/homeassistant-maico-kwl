@@ -41,6 +41,11 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
    - **Filterwechsel-Warnung (Tage)** – Standard: 7
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
+## Mein Energy-Konsum
+Wenn euch die Integration gefällt, könnt ihr mir gerne eine Spende zukommen lassen,
+müsst ihr aber nicht. Ich helfe im Forum so gut es geht :).
+
+https://www.paypal.com/donate/?hosted_button_id=SLNW2MCC268SG
 
 ## Entitäten
 
