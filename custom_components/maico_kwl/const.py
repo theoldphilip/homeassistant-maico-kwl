@@ -86,6 +86,8 @@ DEFAULT_COOL_TARGET = 22.0     # °C: bis zu dieser Innentemperatur wird gekühl
 SUMMER_DAY_HYSTERESIS = 1.0    # °C
 # Stage written to register 554 when night-cooling (4 = Intensiv)
 SUMMER_COOL_STUFE = 4
+# Stage written when in neutral "Bereit" zone (1 = Schutzlüftung, minimal)
+SUMMER_IDLE_STUFE = 1
 
 # Entity naming
 ATTR_BETRIEBSART = "betriebsart"

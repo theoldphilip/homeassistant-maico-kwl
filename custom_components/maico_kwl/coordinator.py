@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_COOL_TARGET,
     SUMMER_DAY_HYSTERESIS,
     SUMMER_COOL_STUFE,
+    SUMMER_IDLE_STUFE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -198,7 +199,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         elif action == "off":
             self.summer_status = "Anlage aus (Hitze/Ziel erreicht)"
         else:
-            self.summer_status = "Bereit (wartet auf Kühlbedingungen)"
+            self.summer_status = "Bereit (Schutzlüftung, wartet auf Kühlbedingungen)"
 
         if action == self._summer_last_action:
             return  # nothing changed, don't re-write
@@ -219,7 +220,17 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                     outdoor, indoor,
                 )
                 await self._write_register(MODBUS_REGISTERS["betriebsart"], 0)  # Aus
-            # "idle" -> do nothing on the device
+            elif action == "idle":
+                # Neutral zone: not actively cooling, but keep a minimal air
+                # exchange (Schutzlüftung) so humidity/CO2 don't build up.
+                _LOGGER.info(
+                    "Sommermodus: Bereit/Schutzlüftung (außen %.1f°C, innen %.1f°C)",
+                    outdoor, indoor,
+                )
+                await self._write_register(MODBUS_REGISTERS["betriebsart"], 1)  # Manuell
+                await self._write_register(
+                    MODBUS_REGISTERS["lueftungsstufe_write"], SUMMER_IDLE_STUFE
+                )
 
             self._summer_last_action = action
         except Exception as err:

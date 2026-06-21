@@ -1,6 +1,6 @@
-# Maico Lüftungsanlagen – Home Assistant Integration
+# Maico WS 300 Flat – Home Assistant Integration
 
-Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** (oder anderer Maico) Lüftungsanlage (KWL) über Modbus TCP.
+Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** Lüftungsanlage (KWL) über Modbus TCP.
 
 Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig.
 
@@ -41,13 +41,6 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
    - **Filterwechsel-Warnung (Tage)** – Standard: 7
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
-
-
-## Mein Energy-Konsum
-Wenn euch die Integration gefällt, könnt ihr mir gerne eine Spende zukommen lassen,
-müsst ihr aber nicht. Ich helfe im Forum so gut es geht :).
-
-https://www.paypal.com/donate/?hosted_button_id=SLNW2MCC268SG
 
 ## Entitäten
 
@@ -93,10 +86,11 @@ https://www.paypal.com/donate/?hosted_button_id=SLNW2MCC268SG
 Ist der Schalter `switch.maico_kwl_sommermodus` aktiv, regelt die Integration die Anlage temperaturabhängig:
 
 - **Nachtkühlung:** Ist die Außenluft mindestens *Mindest-Differenz* °C kühler als die Raumluft **und** liegt die Raumluft über der *Zieltemperatur*, schaltet die Anlage auf Manuell + Intensiv. Der Bypass wird vom Gerät selbst geöffnet.
-- **Tagsüber bei Hitze:** Ist die Außenluft wärmer als die Raumluft, wird die Anlage abgeschaltet, um keine warme Luft einzubringen.
-- **Zieltemperatur erreicht:** Die Anlage wird abgeschaltet, damit die Räume nicht auskühlen.
+- **Bereit (Schutzlüftung):** In der neutralen Zone (weder kühl genug zum Kühlen noch zu warm) läuft die Anlage auf Manuell + Schutzlüftung – minimaler Luftaustausch, damit Feuchte und CO₂ nicht ansteigen, ohne aktiv zu kühlen.
+- **Tagsüber bei Hitze:** Ist die Außenluft wärmer als die Raumluft (inkl. 1 °C Hysterese), wird die Anlage abgeschaltet, um keine warme Luft einzubringen.
+- **Zieltemperatur erreicht:** Wurde aktiv gekühlt und die Raumluft erreicht die Zieltemperatur, wird die Anlage abgeschaltet, damit die Räume nicht auskühlen.
 
-Schwellen über `number.maico_kwl_cool_min_diff` (Standard 2 °C) und `number.maico_kwl_cool_target` (Standard 22 °C) einstellbar. Ist der Schalter aus, greift keinerlei Automatik – die Anlage lässt sich vollständig manuell bedienen.
+Der aktuelle Zustand ist am Sensor `sensor.maico_kwl_sommermodus_status` ablesbar (Kühlt / Bereit / Aus / Inaktiv). Schwellen über `number.maico_kwl_cool_min_diff` (Standard 2 °C) und `number.maico_kwl_cool_target` (Standard 22 °C) einstellbar. Ist der Schalter aus, greift keinerlei Automatik – die Anlage lässt sich vollständig manuell bedienen.
 
 ## Modbus-Register
 
@@ -121,7 +115,7 @@ Temperaturen werden als `int16` mit Faktor 0,1 gelesen.
 ## Voraussetzungen
 
 - Home Assistant 2024.1.0 oder neuer
-- Maico (bspw. 300 Flat) mit aktiviertem Modbus TCP, erreichbar im Netzwerk
+- Maico WS 300 Flat mit aktiviertem Modbus TCP, erreichbar im Netzwerk
 
 ## Haftungsausschluss
 
