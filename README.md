@@ -1,6 +1,6 @@
 # Maico Lüftungsanlagen – Home Assistant Integration
 
-Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** Lüftungsanlage (KWL) über Modbus TCP.
+Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico** Lüftungsanlage (KWL) über Modbus TCP.
 
 Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig.
 
