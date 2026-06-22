@@ -42,6 +42,10 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 
+ACHTUNG: Solltet ihr die Anlage vorher händisch via Modbus
+Eingebunden haben, MUSS das vorher wntfernt werden. Die Anlage kann nur
+von einem Modul / Integration gesteuert und abgefragt werden !
+
 ## Entitäten
 
 ### Steuerung
