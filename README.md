@@ -74,6 +74,11 @@ Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 | `maico_kwl_schalter_bypass` | Bypass-Status |
 | `maico_kwl_filter_restlaufzeit_zuluft` | Filterwechsel (Restlaufzeit in Tagen) |
 | `maico_kwl_wrg_efficiency` | Wärmerückgewinnung (%) |
+| `maico_kwl_sommermodus_status` | Status des Sommermodus (Text) |
+| `maico_kwl_leistung` | Geschätzte Leistungsaufnahme (W) |
+| `maico_kwl_energie` | Geschätzter Energieverbrauch (kWh, für Energie-Dashboard) |
+
+> **Hinweis:** Leistung und Energie sind **Schätzwerte** (keine geeichte Messung). Wie sie berechnet werden, ist im Abschnitt [Stromverbrauch (Schätzung)](#stromverbrauch-schätzung) erklärt.
 
 ### Filterwarnung
 
@@ -91,6 +96,50 @@ Ist der Schalter `switch.maico_kwl_sommermodus` aktiv, regelt die Integration di
 - **Zieltemperatur erreicht:** Wurde aktiv gekühlt und die Raumluft erreicht die Zieltemperatur, wird die Anlage abgeschaltet, damit die Räume nicht auskühlen.
 
 Der aktuelle Zustand ist am Sensor `sensor.maico_kwl_sommermodus_status` ablesbar (Kühlt / Bereit / Aus / Inaktiv). Schwellen über `number.maico_kwl_cool_min_diff` (Standard 2 °C) und `number.maico_kwl_cool_target` (Standard 22 °C) einstellbar. Ist der Schalter aus, greift keinerlei Automatik – die Anlage lässt sich vollständig manuell bedienen.
+
+## Stromverbrauch (Schätzung)
+
+Die Sensoren `maico_kwl_leistung` (W) und `maico_kwl_energie` (kWh) liefern eine **rechnerische Schätzung** des Stromverbrauchs. Das Gerät selbst meldet keine Leistung über Modbus, daher wird sie aus dem Volumenstrom abgeleitet.
+
+### Grundlage: der SPI-Wert
+
+Das Maico-Datenblatt der WS 300 Flat gibt einen **SPI-Wert** (spezifische Leistungsaufnahme) von **0,2 Wh/m³** nach DIN EN 13141-7 (A7) an. Dieser Wert beschreibt, wie viel elektrische Energie das Gerät pro gefördertem Kubikmeter Luft aufnimmt – also den Wirkungsgrad der Ventilatoren über alle Stufen hinweg.
+
+### Leistung (Watt)
+
+Aus dem SPI-Wert und dem aktuell gemessenen Volumenstrom ergibt sich die Momentanleistung:
+
+```
+Leistung [W] = Volumenstrom [m³/h] × SPI [Wh/m³]
+             = Volumenstrom [m³/h] × 0,2
+```
+
+Da Zu- und Abluft getrennt gemessen werden, wird der **Mittelwert beider Volumenströme** verwendet. Liegt kein Volumenstrom an (Anlage aus), wird die **Standby-Leistung von ca. 1 W** angesetzt (ebenfalls aus dem Datenblatt).
+
+Beispielwerte:
+
+| Betrieb | Volumenstrom | geschätzte Leistung |
+|---|---|---|
+| Aus (Standby) | 0 m³/h | ~1 W |
+| Schutzlüftung | ~100 m³/h | ~20 W |
+| Nennlüftung | ~150 m³/h | ~30 W |
+| Intensiv | ~200 m³/h | ~40 W |
+
+Zum Vergleich: Das Datenblatt nennt 45 W beim genormten Referenz-Betriebspunkt – die Schätzung für Intensiv (40 W) liegt also in derselben Größenordnung.
+
+### Energie (kWh)
+
+Der Energiesensor **integriert die geschätzte Leistung über die Zeit**. Bei jeder Aktualisierung wird die seit der letzten Messung verstrichene Zeit mit der momentanen Leistung multipliziert und aufaddiert:
+
+```
+Energie [kWh] += Leistung [W] × verstrichene Zeit [h] ÷ 1000
+```
+
+Der Sensor ist als `total_increasing`-Zähler ausgelegt und damit direkt im **Home-Assistant-Energie-Dashboard** verwendbar. Der Zählerstand übersteht einen Neustart (über `RestoreEntity`); Ausfallzeiten werden nicht mitgezählt.
+
+### Wichtige Einordnung
+
+Dies ist eine **Schätzung, keine geeichte Messung**. Der reale Verbrauch weicht ab, weil der SPI-Wert ein genormter Mittelwert ist und der tatsächliche Bedarf u. a. von Kanaldruck, Filterzustand und Betriebspunkt abhängt. Für eine exakte Erfassung wäre eine Strommesssteckdose nötig. Für eine Größenordnung („was kostet die Lüftung ungefähr") ist die Schätzung jedoch gut geeignet.
 
 ## Modbus-Register
 

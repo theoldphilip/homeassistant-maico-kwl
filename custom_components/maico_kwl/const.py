@@ -89,6 +89,13 @@ SUMMER_COOL_STUFE = 4
 # Stage written when in neutral "Bereit" zone (1 = Schutzlüftung, minimal)
 SUMMER_IDLE_STUFE = 1
 
+# --- Stromverbrauch (Schätzung laut Hersteller-Datenblatt) ---
+# SPI-Wert nach DIN EN 13141-7 (A7): 0,2 Wh/m³.
+# Leistung (W) = Volumenstrom (m³/h) * SPI.
+SPI_WH_PER_M3 = 0.2
+# Standby-Leistung laut Datenblatt (< 1 W)
+STANDBY_POWER_W = 1.0
+
 # Entity naming
 ATTR_BETRIEBSART = "betriebsart"
 ATTR_LUEFTUNGSSTUFE = "lueftungsstufe"

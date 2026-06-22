@@ -1,12 +1,14 @@
 """Sensor entities for Maico KWL."""
 import logging
 from typing import Any
+from datetime import datetime, timezone
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature, PERCENTAGE
+from homeassistant.const import UnitOfTemperature, PERCENTAGE, UnitOfPower, UnitOfEnergy
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     DOMAIN,
@@ -15,6 +17,8 @@ from .const import (
     LUEFTUNGSSTUFE_MAPPING,
     BYPASS_STATUS_MAPPING,
     SCHALTER_STATUS_MAPPING,
+    SPI_WH_PER_M3,
+    STANDBY_POWER_W,
 )
 from .coordinator import MaicoKWLCoordinator
 
@@ -67,6 +71,10 @@ async def async_setup_entry(
 
         # Sommermodus-Status
         MaicoKWLSummerStatusSensor(coordinator, config_entry),
+
+        # Stromverbrauch (Schätzung aus SPI-Wert)
+        MaicoKWLPowerSensor(coordinator, config_entry),
+        MaicoKWLEnergySensor(coordinator, config_entry),
     ]
 
     async_add_entities(entities, update_before_add=True)
@@ -366,3 +374,111 @@ class MaicoKWLSummerStatusSensor(MaicoKWLBaseSensor):
     def native_value(self) -> str | None:
         """Return the human-readable summer mode status."""
         return getattr(self.coordinator, "summer_status", None)
+
+
+class MaicoKWLPowerSensor(MaicoKWLBaseSensor):
+    """Estimated current power draw (W), derived from the SPI value.
+
+    Power (W) = mean volume flow (m³/h) * SPI (Wh/m³).
+    This is an estimate based on the manufacturer's SPI value
+    (0.2 Wh/m³ per DIN EN 13141-7 A7), not a real measurement.
+    """
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        """Initialize power sensor."""
+        super().__init__(coordinator, config_entry, "leistung", "Leistung (geschätzt)")
+
+    @property
+    def native_value(self) -> float | None:
+        """Estimate current power from the mean volume flow."""
+        if self.coordinator.data is None:
+            return None
+
+        vz = self.coordinator.data.get("volumenstrom_zuluft")
+        va = self.coordinator.data.get("volumenstrom_abluft")
+        flows = [v for v in (vz, va) if isinstance(v, (int, float))]
+
+        # No airflow -> unit effectively off -> standby power.
+        if not flows or max(flows) <= 0:
+            return round(STANDBY_POWER_W, 1)
+
+        mean_flow = sum(flows) / len(flows)
+        power = mean_flow * SPI_WH_PER_M3
+        # Never report below standby.
+        return round(max(power, STANDBY_POWER_W), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose calculation basis."""
+        return {
+            "spi_wh_pro_m3": SPI_WH_PER_M3,
+            "hinweis": "Schätzung aus Volumenstrom × SPI-Wert (laut Hersteller-Datenblatt)",
+        }
+
+
+class MaicoKWLEnergySensor(MaicoKWLBaseSensor, RestoreEntity):
+    """Accumulated energy (kWh), integrated from the estimated power.
+
+    This is a total_increasing counter suitable for the HA Energy
+    dashboard. It integrates the estimated power over real elapsed time
+    between updates and survives restarts via RestoreEntity.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 3
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        """Initialize energy sensor."""
+        super().__init__(coordinator, config_entry, "energie", "Energieverbrauch (geschätzt)")
+        self._total_kwh: float = 0.0
+        self._last_ts: datetime | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the accumulated value across restarts."""
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in (None, "unknown", "unavailable"):
+            try:
+                self._total_kwh = float(last.state)
+            except (ValueError, TypeError):
+                self._total_kwh = 0.0
+        # Start integrating from now (don't count downtime).
+        self._last_ts = datetime.now(timezone.utc)
+
+    def _current_power_w(self) -> float:
+        """Same estimation as the power sensor."""
+        if self.coordinator.data is None:
+            return STANDBY_POWER_W
+        vz = self.coordinator.data.get("volumenstrom_zuluft")
+        va = self.coordinator.data.get("volumenstrom_abluft")
+        flows = [v for v in (vz, va) if isinstance(v, (int, float))]
+        if not flows or max(flows) <= 0:
+            return STANDBY_POWER_W
+        return max(sum(flows) / len(flows) * SPI_WH_PER_M3, STANDBY_POWER_W)
+
+    @property
+    def native_value(self) -> float:
+        """Integrate power over elapsed time and return total kWh."""
+        now = datetime.now(timezone.utc)
+        if self._last_ts is not None:
+            elapsed_h = (now - self._last_ts).total_seconds() / 3600.0
+            # Guard against clock jumps / absurd gaps (> 1 h between polls).
+            if 0 < elapsed_h <= 1:
+                self._total_kwh += self._current_power_w() * elapsed_h / 1000.0
+        self._last_ts = now
+        return round(self._total_kwh, 4)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose calculation basis."""
+        return {
+            "spi_wh_pro_m3": SPI_WH_PER_M3,
+            "hinweis": "Aufsummierte Schätzung; kein geeichter Zähler",
+        }
