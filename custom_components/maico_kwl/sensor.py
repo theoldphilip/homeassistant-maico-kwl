@@ -75,6 +75,16 @@ async def async_setup_entry(
         # Stromverbrauch (Schätzung aus SPI-Wert)
         MaicoKWLPowerSensor(coordinator, config_entry),
         MaicoKWLEnergySensor(coordinator, config_entry),
+
+        # Erweiterte Sensoren (offizielle Parameterliste)
+        MaicoKWLTemperatureSensor(coordinator, config_entry, "temp_raum", "Temperatur - Raum (Gerätefühler)"),
+        MaicoKWLOperatingHoursSensor(coordinator, config_entry, "bh_feuchteschutz", "Betriebsstunden Feuchteschutz"),
+        MaicoKWLOperatingHoursSensor(coordinator, config_entry, "bh_reduziert", "Betriebsstunden Reduziert"),
+        MaicoKWLOperatingHoursSensor(coordinator, config_entry, "bh_nenn", "Betriebsstunden Nennlüftung"),
+        MaicoKWLOperatingHoursSensor(coordinator, config_entry, "bh_intensiv", "Betriebsstunden Intensiv"),
+        MaicoKWLOperatingHoursSensor(coordinator, config_entry, "bh_gesamt", "Betriebsstunden Gesamt"),
+        MaicoKWLDiagnosticSensor(coordinator, config_entry, "fehler", "Fehler", ("fehler_1", "fehler_2")),
+        MaicoKWLDiagnosticSensor(coordinator, config_entry, "hinweis", "Hinweis", ("hinweis_1", "hinweis_2")),
     ]
 
     async_add_entities(entities, update_before_add=True)
@@ -482,3 +492,55 @@ class MaicoKWLEnergySensor(MaicoKWLBaseSensor, RestoreEntity):
             "spi_wh_pro_m3": SPI_WH_PER_M3,
             "hinweis": "Aufsummierte Schätzung; kein geeichter Zähler",
         }
+
+
+class MaicoKWLOperatingHoursSensor(MaicoKWLBaseSensor):
+    """Operating hours counter (32-bit, read from two registers)."""
+
+    _attr_native_unit_of_measurement = "h"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:timer-outline"
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator, config_entry, data_key, name):
+        super().__init__(coordinator, config_entry, data_key, name)
+        self._data_key = data_key
+
+    @property
+    def native_value(self) -> int | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._data_key)
+
+
+class MaicoKWLDiagnosticSensor(MaicoKWLBaseSensor):
+    """Error/notice bitfield sensor.
+
+    Shows "OK" when no bits are set, otherwise the raw bitfield value(s).
+    The raw values are exposed as attributes for decoding.
+    """
+
+    _attr_icon = "mdi:alert-circle-outline"
+
+    def __init__(self, coordinator, config_entry, data_key, name, source_keys):
+        super().__init__(coordinator, config_entry, data_key, name)
+        self._source_keys = source_keys
+
+    @property
+    def native_value(self) -> str | None:
+        if self.coordinator.data is None:
+            return None
+        vals = [self.coordinator.data.get(k, 0) or 0 for k in self._source_keys]
+        if all(v == 0 for v in vals):
+            return "OK"
+        # Active bits present -> report as combined hex for reference
+        return "Aktiv"
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        if self.coordinator.data is None:
+            return {}
+        attrs = {}
+        for k in self._source_keys:
+            attrs[k] = self.coordinator.data.get(k, 0)
+        return attrs

@@ -31,6 +31,14 @@ async def async_setup_entry(
     async_add_entities([
         MaicoKWLCoolMinDiffNumber(coordinator, config_entry),
         MaicoKWLCoolTargetNumber(coordinator, config_entry),
+        # Geräte-Sollwerte (schreiben direkt ins Gerät)
+        MaicoKWLDeviceTempNumber(
+            coordinator, config_entry, "t_raum_max",
+            "T-Raum max. (Sommer)", "mdi:thermometer-high", 18.0, 30.0),
+        MaicoKWLDeviceTempNumber(
+            coordinator, config_entry, "t_zuluft_min_kuehlen",
+            "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0),
+        MaicoKWLBoostDurationNumber(coordinator, config_entry),
     ])
 
 
@@ -108,3 +116,78 @@ class MaicoKWLCoolTargetNumber(_MaicoKWLBaseNumber):
         self.coordinator.cool_target = value
         self.async_write_ha_state()
         await self.coordinator.async_request_refresh()
+
+
+class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
+    """A temperature setpoint that is written directly to the device.
+
+    Reads the current value from the coordinator data and writes changes
+    to the corresponding register (int16 ×10).
+    """
+
+    _attr_native_step = 0.5
+
+    def __init__(self, coordinator, config_entry, register_key, name, icon, vmin, vmax):
+        super().__init__(coordinator, config_entry)
+        self._register_key = register_key
+        self._attr_unique_id = f"maico_kwl_{register_key}"
+        self._attr_name = name
+        self._attr_icon = icon
+        self._attr_native_min_value = vmin
+        self._attr_native_max_value = vmax
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._register_key)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_set_temp_register(self._register_key, value)
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class MaicoKWLBoostDurationNumber(_MaicoKWLBaseNumber):
+    """Duration of the boost ventilation (register 153, minutes)."""
+
+    _attr_name = "Dauer Stoßlüftung"
+    _attr_unique_id = "maico_kwl_dauer_lueftungsstufe"
+    _attr_icon = "mdi:timer-sand"
+    _attr_native_unit_of_measurement = "min"
+    _attr_native_min_value = 5
+    _attr_native_max_value = 90
+    _attr_native_step = 1
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get("dauer_lueftungsstufe")
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_write_raw("dauer_lueftungsstufe", int(value))
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )

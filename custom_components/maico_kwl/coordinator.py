@@ -1,6 +1,6 @@
 """Data coordinator for Maico KWL."""
 import logging
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 from typing import Any, Dict
 
 from pymodbus.client import AsyncModbusTcpClient
@@ -53,6 +53,9 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         # Remembers what the automation last commanded, so we don't spam the
         # device with identical writes on every poll.
         self._summer_last_action: str | None = None
+        # Timestamp until which a manually triggered Stoßlüftung is active.
+        # While set and in the future, the summer logic stands down.
+        self._boost_until: datetime | None = None
         # Human-readable status for the status sensor / notifications.
         self.summer_status: str = "Inaktiv"
 
@@ -140,6 +143,39 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 data["schalter_abluft"] = bool(result.registers[1])
                 data["schalter_bypass"] = bool(result.registers[2])
 
+            # --- Erweiterte Register ---
+            # Temperatur Raum (700, int16 ×10)
+            result = await self._read_registers(MODBUS_REGISTERS["temp_raum"], 1)
+            if not result.isError():
+                data["temp_raum"] = self._int16_to_float(result.registers[0], 0.1)
+
+            # Konfig-Sollwerte (schreibbar, hier nur lesen für Anzeige)
+            # 301/302 int16 ×10
+            for key in ("t_zuluft_min_kuehlen", "t_raum_max"):
+                res = await self._read_registers(MODBUS_REGISTERS[key], 1)
+                if not res.isError():
+                    data[key] = self._int16_to_float(res.registers[0], 0.1)
+
+            # Stoßlüftung (551), Dauer (153)
+            for key in ("stosslueftung", "dauer_lueftungsstufe"):
+                res = await self._read_registers(MODBUS_REGISTERS[key], 1)
+                if not res.isError():
+                    data[key] = res.registers[0]
+
+            # Fehler/Hinweise (401-404, Bitfelder)
+            for key in ("fehler_1", "fehler_2", "hinweis_1", "hinweis_2"):
+                res = await self._read_registers(MODBUS_REGISTERS[key], 1)
+                if not res.isError():
+                    data[key] = res.registers[0]
+
+            # Betriebsstunden (850-859): je 2 Register = 32 Bit (High-Word/Low-Word)
+            for key in ("bh_feuchteschutz", "bh_reduziert", "bh_nenn",
+                        "bh_intensiv", "bh_gesamt"):
+                res = await self._read_registers(MODBUS_REGISTERS[key], 2)
+                if not res.isError() and len(res.registers) >= 2:
+                    high, low = res.registers[0], res.registers[1]
+                    data[key] = (high << 16) | low
+
             # --- Sommermodus / Nachtkühlung ---
             # Evaluated after a successful read, using the fresh temperatures.
             await self._evaluate_summer_mode(data)
@@ -171,6 +207,17 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
             self._summer_last_action = None
             self.summer_status = "Inaktiv"
             return
+
+        # If a manual Stoßlüftung is currently running, stand down so we
+        # don't cut it short. Resume normal logic once it has elapsed.
+        if self._boost_until is not None:
+            if datetime.now(timezone.utc) < self._boost_until:
+                self.summer_status = "Stoßlüftung aktiv (Sommermodus pausiert)"
+                # Forget last action so we re-evaluate cleanly afterwards.
+                self._summer_last_action = None
+                return
+            else:
+                self._boost_until = None  # expired
 
         t_aul = data.get("temp_aussenluft")  # outdoor
         t_ab = data.get("temp_abluft")       # indoor (extract air)
@@ -281,6 +328,41 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error(f"Error setting Betriebsart: {err}")
             raise
+
+    async def async_write_raw(self, register_key: str, value: int):
+        """Write a raw integer value to a named register.
+
+        Used by the extended control entities (Stoßlüftung, T-Raum max., ...).
+        The caller is responsible for passing an already-scaled raw value.
+        """
+        try:
+            result = await self._write_register(MODBUS_REGISTERS[register_key], value)
+            if result.isError():
+                raise UpdateFailed(f"Error writing {register_key}: {result}")
+            await self.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("Error writing %s: %s", register_key, err)
+            raise
+
+    async def async_trigger_stosslueftung(self):
+        """Trigger boost ventilation (551 = 1).
+
+        Also records how long the boost should run (from register 153, the
+        configured duration) so the summer logic can stand down meanwhile.
+        """
+        # Determine the configured duration (minutes); fall back to 30.
+        minutes = 30
+        if self.data is not None:
+            d = self.data.get("dauer_lueftungsstufe")
+            if isinstance(d, (int, float)) and d > 0:
+                minutes = int(d)
+        self._boost_until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+        await self.async_write_raw("stosslueftung", 1)
+
+    async def async_set_temp_register(self, register_key: str, celsius: float):
+        """Write a temperature setpoint (int16 ×10) to a register."""
+        raw = int(round(celsius * 10))
+        await self.async_write_raw(register_key, raw)
 
     async def async_shutdown(self):
         """Shutdown coordinator."""

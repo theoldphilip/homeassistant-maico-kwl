@@ -1,6 +1,6 @@
-# Maico Lüftungsanlagen – Home Assistant Integration
+# Maico WS 300 Flat – Home Assistant Integration
 
-Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico** Lüftungsanlage (KWL) über Modbus TCP.
+Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** Lüftungsanlage (KWL) über Modbus TCP.
 
 Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig.
 
@@ -12,6 +12,9 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
   - Beim Ändern der Stufe wird die Betriebsart automatisch auf „Manuell" gesetzt
 - **Sensoren** für Temperaturen, Drehzahlen, Volumenströme, Luftfeuchte, CO₂, Betriebszustände
 - **Wärmerückgewinnung** wird live aus den Temperaturen berechnet
+- **Stromverbrauch** wird aus dem Volumenstrom geschätzt (Watt + kWh fürs Energie-Dashboard)
+- **Betriebsstunden** je Lüftungsstufe sowie Fehler-/Hinweis-Diagnose
+- **Stoßlüftung** per Knopfdruck (zeitbegrenzte Intensivlüftung)
 - **Filterwechsel-Warnung** mit einstellbarer Schwelle (Tage)
 - **Sommermodus** mit automatischer Nachtkühlung (optional, per Schalter)
 - Lokale Anbindung (local polling), keine Cloud
@@ -41,10 +44,6 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
    - **Filterwechsel-Warnung (Tage)** – Standard: 7
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
-
-ACHTUNG: Solltet ihr die Anlage vorher händisch via Modbus
-Eingebunden haben, MUSS das vorher wntfernt werden. Die Anlage kann nur
-von einem Modul / Integration gesteuert und abgefragt werden !
 
 ## Entitäten
 
@@ -98,8 +97,9 @@ Ist der Schalter `switch.maico_kwl_sommermodus` aktiv, regelt die Integration di
 - **Bereit (Schutzlüftung):** In der neutralen Zone (weder kühl genug zum Kühlen noch zu warm) läuft die Anlage auf Manuell + Schutzlüftung – minimaler Luftaustausch, damit Feuchte und CO₂ nicht ansteigen, ohne aktiv zu kühlen.
 - **Tagsüber bei Hitze:** Ist die Außenluft wärmer als die Raumluft (inkl. 1 °C Hysterese), wird die Anlage abgeschaltet, um keine warme Luft einzubringen.
 - **Zieltemperatur erreicht:** Wurde aktiv gekühlt und die Raumluft erreicht die Zieltemperatur, wird die Anlage abgeschaltet, damit die Räume nicht auskühlen.
+- **Stoßlüftung aktiv:** Wird über den Button `button.maico_kwl_stosslueftung` eine Stoßlüftung ausgelöst, pausiert der Sommermodus für die eingestellte Dauer und greift nicht ein. Danach übernimmt die normale Logik automatisch wieder.
 
-Der aktuelle Zustand ist am Sensor `sensor.maico_kwl_sommermodus_status` ablesbar (Kühlt / Bereit / Aus / Inaktiv). Schwellen über `number.maico_kwl_cool_min_diff` (Standard 2 °C) und `number.maico_kwl_cool_target` (Standard 22 °C) einstellbar. Ist der Schalter aus, greift keinerlei Automatik – die Anlage lässt sich vollständig manuell bedienen.
+Der aktuelle Zustand ist am Sensor `sensor.maico_kwl_sommermodus_status` ablesbar (Kühlt / Bereit / Aus / Stoßlüftung aktiv / Inaktiv). Schwellen über `number.maico_kwl_cool_min_diff` (Standard 2 °C) und `number.maico_kwl_cool_target` (Standard 22 °C) einstellbar. Ist der Schalter aus, greift keinerlei Automatik – die Anlage lässt sich vollständig manuell bedienen.
 
 ## Stromverbrauch (Schätzung)
 
@@ -144,6 +144,32 @@ Der Sensor ist als `total_increasing`-Zähler ausgelegt und damit direkt im **Ho
 ### Wichtige Einordnung
 
 Dies ist eine **Schätzung, keine geeichte Messung**. Der reale Verbrauch weicht ab, weil der SPI-Wert ein genormter Mittelwert ist und der tatsächliche Bedarf u. a. von Kanaldruck, Filterzustand und Betriebspunkt abhängt. Für eine exakte Erfassung wäre eine Strommesssteckdose nötig. Für eine Größenordnung („was kostet die Lüftung ungefähr") ist die Schätzung jedoch gut geeignet.
+
+## Erweiterte Parameter (offizielle Maico-Registerliste)
+
+Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Maico-Parameterliste eingebunden:
+
+### Lese-Sensoren
+
+| Entität | Beschreibung |
+|---|---|
+| `maico_kwl_temp_raum` | Temperatur Raum (Gerätefühler, Register 700) |
+| `maico_kwl_bh_feuchteschutz` … `_gesamt` | Betriebsstunden je Stufe + gesamt (850–859, 32-Bit) |
+| `maico_kwl_fehler` | Aktueller Fehler (OK / Aktiv, Bitfeld 401/402 als Attribut) |
+| `maico_kwl_hinweis` | Aktueller Hinweis (OK / Aktiv, Bitfeld 403/404 als Attribut) |
+
+### Steuerung (schreibt direkt ins Gerät)
+
+| Entität | Register | Beschreibung |
+|---|---|---|
+| `number.maico_kwl_t_raum_max` | 302 | T-Raum max. – Schwelle für die automatische Bypass-Kühlung (18–30 °C) |
+| `number.maico_kwl_t_zuluft_min_kuehlen` | 301 | Minimale Zulufttemperatur beim Kühlen (8–29 °C) |
+| `number.maico_kwl_dauer_lueftungsstufe` | 153 | Dauer der Stoßlüftung (5–90 min) |
+| `button.maico_kwl_stosslueftung` | 551 | Stoßlüftung auslösen (Intensiv für die eingestellte Dauer) |
+
+> **Firmware ≥ 1.3.0:** Ab dieser Firmware gibt es keine Sommer-/Winterumschaltung mehr – der Bypass wird vollautomatisch geregelt und öffnet, sobald die Raumtemperatur über **T-Raum max.** (Register 302) steigt und die Außenluft kühler ist. Dieser Wert ist damit der eigentliche Hebel für die geräteeigene Kühlung. Die früheren Register „Jahreszeit" (552) und „Solltemperatur Raum" (553, nur mit Nachheizregister wirksam) sind daher nicht eingebunden.
+
+> ⚠️ **Hinweis zur HA-Nachtkühlung:** Der HA-**Sommermodus** regelt zusätzlich aktiv die Lüftungsstufe hoch (Intensiv), während das Gerät nur den Bypass öffnet. Beide ergänzen sich. Damit sie in dieselbe Richtung arbeiten, sollte **T-Raum max.** nicht höher als die gewünschte Kühl-Zieltemperatur stehen.
 
 ## Modbus-Register
 

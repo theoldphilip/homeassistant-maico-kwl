@@ -23,7 +23,9 @@ async def async_setup_entry(
     coordinator: MaicoKWLCoordinator = hass.data[DOMAIN][config_entry.entry_id][
         "coordinator"
     ]
-    async_add_entities([MaicoKWLSummerModeSwitch(coordinator, config_entry)])
+    async_add_entities([
+        MaicoKWLSummerModeSwitch(coordinator, config_entry),
+    ])
 
 
 class MaicoKWLSummerModeSwitch(SwitchEntity, RestoreEntity):
@@ -68,3 +70,4 @@ class MaicoKWLSummerModeSwitch(SwitchEntity, RestoreEntity):
         """Disable summer mode."""
         self.coordinator.summer_mode = False
         self.async_write_ha_state()
+

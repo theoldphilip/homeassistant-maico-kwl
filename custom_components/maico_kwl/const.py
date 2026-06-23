@@ -42,6 +42,25 @@ MODBUS_REGISTERS = {
     "schalter_zuluft": 800,       # Schalter Zuluftventilator
     "schalter_abluft": 801,       # Schalter Abluftventilator
     "schalter_bypass": 802,       # Schalter Bypass
+
+    # --- Erweiterte Register (offizielle Maico-Parameterliste) ---
+    # Schreibbare Steuerung
+    "stosslueftung": 551,         # 1 = Stoßlüftung auslösen  [W]
+    "dauer_lueftungsstufe": 153,  # Dauer der Stoßlüftung [min] (5..90)  [W]
+    "t_raum_max": 302,            # T-Raum max. [°C] (18..30, int16 ×10)  [W]
+    "t_zuluft_min_kuehlen": 301,  # T-Zuluft min. kühlen [°C] (8..29, int16 ×10)  [W]
+    # Lese-Sensoren
+    "temp_raum": 700,             # Temperatur Raum [°C] (int16 ×10)  [R]
+    "fehler_1": 401,              # Aktueller Fehler (Bitfeld)  [R]
+    "fehler_2": 402,              # Aktueller Fehler (Bitfeld)  [R]
+    "hinweis_1": 403,             # Aktueller Hinweis (Bitfeld)  [R]
+    "hinweis_2": 404,             # Aktueller Hinweis (Bitfeld)  [R]
+    # Betriebsstunden — je 2 Register (High-Word + Low-Word) = 32 Bit
+    "bh_feuchteschutz": 850,      # +851
+    "bh_reduziert": 852,          # +853
+    "bh_nenn": 854,               # +855
+    "bh_intensiv": 856,           # +857
+    "bh_gesamt": 858,             # +859
 }
 
 # Betriebsart Mapping (6 Modi)

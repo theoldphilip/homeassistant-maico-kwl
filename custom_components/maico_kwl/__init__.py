@@ -18,6 +18,7 @@ PLATFORMS: Final = [
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.NUMBER,
+    Platform.BUTTON,
 ]
 
 
