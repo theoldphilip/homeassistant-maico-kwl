@@ -37,7 +37,7 @@ async def async_setup_entry(
             "T-Raum max. (Sommer)", "mdi:thermometer-high", 18.0, 30.0),
         MaicoKWLDeviceTempNumber(
             coordinator, config_entry, "t_zuluft_min_kuehlen",
-            "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0),
+            "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0, scale=1.0),
         MaicoKWLBoostDurationNumber(coordinator, config_entry),
     ])
 
@@ -127,9 +127,10 @@ class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
 
     _attr_native_step = 0.5
 
-    def __init__(self, coordinator, config_entry, register_key, name, icon, vmin, vmax):
+    def __init__(self, coordinator, config_entry, register_key, name, icon, vmin, vmax, scale=10.0):
         super().__init__(coordinator, config_entry)
         self._register_key = register_key
+        self._scale = scale
         self._attr_unique_id = f"maico_kwl_{register_key}"
         self._attr_name = name
         self._attr_icon = icon
@@ -147,7 +148,9 @@ class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
         return self.coordinator.last_update_success
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.async_set_temp_register(self._register_key, value)
+        await self.coordinator.async_set_temp_register(
+            self._register_key, value, self._scale
+        )
 
     @property
     def should_poll(self) -> bool:

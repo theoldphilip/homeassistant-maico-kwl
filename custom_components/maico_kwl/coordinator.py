@@ -150,11 +150,15 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 data["temp_raum"] = self._int16_to_float(result.registers[0], 0.1)
 
             # Konfig-Sollwerte (schreibbar, hier nur lesen für Anzeige)
-            # 301/302 int16 ×10
-            for key in ("t_zuluft_min_kuehlen", "t_raum_max"):
-                res = await self._read_registers(MODBUS_REGISTERS[key], 1)
-                if not res.isError():
-                    data[key] = self._int16_to_float(res.registers[0], 0.1)
+            # t_raum_max (302): int16 ×10  ->  Rohwert 230 = 23,0 °C
+            res = await self._read_registers(MODBUS_REGISTERS["t_raum_max"], 1)
+            if not res.isError():
+                data["t_raum_max"] = self._int16_to_float(res.registers[0], 0.1)
+            # t_zuluft_min_kuehlen (301): NICHT ×10 auf dieser Firmware
+            #   -> Rohwert 14 = 14,0 °C (verifiziert gegen Maico-App)
+            res = await self._read_registers(MODBUS_REGISTERS["t_zuluft_min_kuehlen"], 1)
+            if not res.isError():
+                data["t_zuluft_min_kuehlen"] = self._int16_to_float(res.registers[0], 1.0)
 
             # Stoßlüftung (551), Dauer (153)
             for key in ("stosslueftung", "dauer_lueftungsstufe"):
@@ -359,9 +363,15 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         self._boost_until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
         await self.async_write_raw("stosslueftung", 1)
 
-    async def async_set_temp_register(self, register_key: str, celsius: float):
-        """Write a temperature setpoint (int16 ×10) to a register."""
-        raw = int(round(celsius * 10))
+    async def async_set_temp_register(self, register_key: str, celsius: float, scale: float = 10.0):
+        """Write a temperature setpoint to a register.
+
+        `scale` is the factor between the displayed °C value and the raw
+        register value. Most registers use ×10 (e.g. 23.0 °C -> 230), but
+        some (e.g. 301 T-Zuluft min. on this firmware) store the value
+        directly (scale = 1).
+        """
+        raw = int(round(celsius * scale))
         await self.async_write_raw(register_key, raw)
 
     async def async_shutdown(self):
