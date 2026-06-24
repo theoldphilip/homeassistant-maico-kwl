@@ -101,6 +101,8 @@ FILTER_WARNING_DAYS = 7  # Alert when filter has 7 days left
 # Defaults for the configurable numbers
 DEFAULT_COOL_MIN_DIFF = 2.0    # °C: Außen muss mind. so viel kühler sein als innen
 DEFAULT_COOL_TARGET = 22.0     # °C: bis zu dieser Innentemperatur wird gekühlt
+DEFAULT_COOL_HYSTERESIS = 0.5  # °C: Totband um die Zieltemperatur (gegen Pendeln)
+DEFAULT_MIN_RUNTIME = 10       # min: Mindest-Haltezeit nach einem Schaltvorgang
 # Hysterese: tagsüber erst "aus", wenn außen mind. so viel wärmer ist als innen
 SUMMER_DAY_HYSTERESIS = 1.0    # °C
 # Stage written to register 554 when night-cooling (4 = Intensiv)

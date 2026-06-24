@@ -101,6 +101,13 @@ Ist der Schalter `switch.maico_kwl_sommermodus` aktiv, regelt die Integration di
 
 Der aktuelle Zustand ist am Sensor `sensor.maico_kwl_sommermodus_status` ablesbar (Kühlt / Bereit / Aus / Stoßlüftung aktiv / Inaktiv). Schwellen über `number.maico_kwl_cool_min_diff` (Standard 2 °C) und `number.maico_kwl_cool_target` (Standard 22 °C) einstellbar. Ist der Schalter aus, greift keinerlei Automatik – die Anlage lässt sich vollständig manuell bedienen.
 
+### Schutz gegen häufiges Schalten (Anti-Pendeln)
+
+Damit die Anlage an der Schaltgrenze nicht ständig hin- und herspringt, gibt es zwei Mechanismen:
+
+- **Hysterese** (`number.maico_kwl_cool_hysteresis`, Standard 0,5 °C): ein Totband um die Zieltemperatur. Gekühlt wird erst ab *Zieltemperatur + Hysterese*, gestoppt erst bei *Zieltemperatur − Hysterese*. Bei Ziel 21 °C und Hysterese 0,5 °C heißt das: Start ab 21,5 °C, Stopp erst bei 20,5 °C.
+- **Mindest-Laufzeit** (`number.maico_kwl_min_runtime`, Standard 10 min, einstellbar 5–15 min): nach jedem Schaltvorgang wird mindestens diese Zeit gewartet, bevor erneut geschaltet wird – auch wenn die Temperatur kurz zappelt.
+
 ## Stromverbrauch (Schätzung)
 
 Die Sensoren `maico_kwl_leistung` (W) und `maico_kwl_energie` (kWh) liefern eine **rechnerische Schätzung** des Stromverbrauchs. Das Gerät selbst meldet keine Leistung über Modbus, daher wird sie aus dem Volumenstrom abgeleitet.

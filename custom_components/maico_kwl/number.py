@@ -13,6 +13,8 @@ from .const import (
     DEVICE_MODEL,
     DEFAULT_COOL_MIN_DIFF,
     DEFAULT_COOL_TARGET,
+    DEFAULT_COOL_HYSTERESIS,
+    DEFAULT_MIN_RUNTIME,
 )
 from .coordinator import MaicoKWLCoordinator
 
@@ -31,6 +33,8 @@ async def async_setup_entry(
     async_add_entities([
         MaicoKWLCoolMinDiffNumber(coordinator, config_entry),
         MaicoKWLCoolTargetNumber(coordinator, config_entry),
+        MaicoKWLCoolHysteresisNumber(coordinator, config_entry),
+        MaicoKWLMinRuntimeNumber(coordinator, config_entry),
         # Geräte-Sollwerte (schreiben direkt ins Gerät)
         MaicoKWLDeviceTempNumber(
             coordinator, config_entry, "t_raum_max",
@@ -114,6 +118,65 @@ class MaicoKWLCoolTargetNumber(_MaicoKWLBaseNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         self.coordinator.cool_target = value
+        self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()
+
+
+class MaicoKWLCoolHysteresisNumber(_MaicoKWLBaseNumber):
+    """Hysteresis (dead band) around the target temperature, anti-cycling."""
+
+    _attr_name = "Kühlung Hysterese"
+    _attr_unique_id = "maico_kwl_cool_hysteresis"
+    _attr_icon = "mdi:arrow-expand-vertical"
+    _attr_native_min_value = 0.0
+    _attr_native_max_value = 2.0
+    _attr_native_step = 0.1
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            try:
+                self.coordinator.cool_hysteresis = float(last.state)
+            except (ValueError, TypeError):
+                self.coordinator.cool_hysteresis = DEFAULT_COOL_HYSTERESIS
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.cool_hysteresis
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.coordinator.cool_hysteresis = value
+        self.async_write_ha_state()
+        await self.coordinator.async_request_refresh()
+
+
+class MaicoKWLMinRuntimeNumber(_MaicoKWLBaseNumber):
+    """Minimum hold time (minutes) after a switch, anti-cycling."""
+
+    _attr_name = "Kühlung Mindest-Laufzeit"
+    _attr_unique_id = "maico_kwl_min_runtime"
+    _attr_icon = "mdi:timer-lock-outline"
+    _attr_native_unit_of_measurement = "min"
+    _attr_native_min_value = 5
+    _attr_native_max_value = 15
+    _attr_native_step = 1
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            try:
+                self.coordinator.min_runtime = int(float(last.state))
+            except (ValueError, TypeError):
+                self.coordinator.min_runtime = DEFAULT_MIN_RUNTIME
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.min_runtime
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.coordinator.min_runtime = int(value)
         self.async_write_ha_state()
         await self.coordinator.async_request_refresh()
 

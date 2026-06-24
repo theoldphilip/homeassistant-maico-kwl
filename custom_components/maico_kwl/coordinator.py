@@ -15,6 +15,8 @@ from .const import (
     DEFAULT_SLAVE_ID,
     DEFAULT_COOL_MIN_DIFF,
     DEFAULT_COOL_TARGET,
+    DEFAULT_COOL_HYSTERESIS,
+    DEFAULT_MIN_RUNTIME,
     SUMMER_DAY_HYSTERESIS,
     SUMMER_COOL_STUFE,
     SUMMER_IDLE_STUFE,
@@ -50,9 +52,13 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         self.summer_mode: bool = False
         self.cool_min_diff: float = DEFAULT_COOL_MIN_DIFF
         self.cool_target: float = DEFAULT_COOL_TARGET
+        self.cool_hysteresis: float = DEFAULT_COOL_HYSTERESIS
+        self.min_runtime: int = DEFAULT_MIN_RUNTIME
         # Remembers what the automation last commanded, so we don't spam the
         # device with identical writes on every poll.
         self._summer_last_action: str | None = None
+        # Timestamp of the last actual switch, for the minimum-runtime guard.
+        self._last_switch_ts: datetime | None = None
         # Timestamp until which a manually triggered Stoßlüftung is active.
         # While set and in the future, the summer logic stands down.
         self._boost_until: datetime | None = None
@@ -232,17 +238,31 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         indoor = t_ab
         outdoor = t_aul
 
+        # --- Entscheidung mit Hysterese (Totband um die Zieltemperatur) ---
+        # Einschalten erst oberhalb von target + hyst, Ausschalten erst
+        # unterhalb von target - hyst. Dazwischen wird der Zustand gehalten.
+        hyst = self.cool_hysteresis
+        cool_on_temp = self.cool_target + hyst   # z.B. 21,5 °C
+        cool_off_temp = self.cool_target - hyst  # z.B. 20,5 °C
+        was_cooling = self._summer_last_action == "cool"
+
         action: str  # one of: "cool", "off", "idle"
-        if outdoor <= indoor - self.cool_min_diff and indoor > self.cool_target:
+
+        # Tagsüber: außen deutlich wärmer als innen -> aus (eigene Hysterese).
+        if outdoor >= indoor + SUMMER_DAY_HYSTERESIS:
+            action = "off"
+        # Kühlbedingung: außen kühl genug UND innen über dem oberen Schaltpunkt.
+        elif outdoor <= indoor - self.cool_min_diff and indoor > cool_on_temp:
             action = "cool"
-        elif outdoor >= indoor + SUMMER_DAY_HYSTERESIS:
+        # Bereits am Kühlen: weiterkühlen, bis der untere Schaltpunkt erreicht
+        # ist (Totband) -- verhindert Pendeln an der Zieltemperatur.
+        elif was_cooling and outdoor <= indoor - self.cool_min_diff and indoor > cool_off_temp:
+            action = "cool"
+        # War am Kühlen und hat den unteren Schaltpunkt erreicht -> stoppen.
+        elif was_cooling and indoor <= cool_off_temp:
             action = "off"
         else:
-            # Neutral zone. If we were cooling and reached the target, stop.
-            if self._summer_last_action == "cool" and indoor <= self.cool_target:
-                action = "off"
-            else:
-                action = "idle"
+            action = "idle"
 
         # Update the human-readable status every cycle (even if unchanged).
         if action == "cool":
@@ -254,6 +274,18 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
 
         if action == self._summer_last_action:
             return  # nothing changed, don't re-write
+
+        # --- Mindest-Laufzeit-Schutz ---
+        # Nach einem Schaltvorgang mindestens `min_runtime` Minuten warten,
+        # bevor erneut geschaltet wird. Schützt zusätzlich vor Pendeln bei
+        # kurzzeitig zappelnden Temperaturen.
+        if self._last_switch_ts is not None:
+            elapsed_min = (datetime.now(timezone.utc) - self._last_switch_ts).total_seconds() / 60.0
+            if elapsed_min < self.min_runtime:
+                # Halten: Status zeigt den gewünschten, aber noch gesperrten Wechsel.
+                rest = self.min_runtime - elapsed_min
+                self.summer_status += f" – Haltezeit {rest:.0f} min"
+                return
 
         try:
             if action == "cool":
@@ -284,6 +316,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 )
 
             self._summer_last_action = action
+            self._last_switch_ts = datetime.now(timezone.utc)
         except Exception as err:
             _LOGGER.error("Sommermodus: Fehler beim Schreiben: %s", err)
 
