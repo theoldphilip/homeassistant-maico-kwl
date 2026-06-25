@@ -119,6 +119,18 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         """True if an optional feature/register is present on this device."""
         return key not in self._absent_features
 
+    # Optional external sensors that become their own sensor entities when
+    # the device exposes them (CO2 1-4, VOC, external humidity).
+    OPTIONAL_SENSOR_KEYS = (
+        "co2_abluft", "co2_sensor_2", "co2_sensor_3", "co2_sensor_4",
+        "voc_sensor_1", "voc_sensor_2",
+        "rf_sensor_1", "rf_sensor_2", "rf_sensor_3", "rf_sensor_4",
+    )
+
+    def _optional_sensor_keys(self):
+        """Optional sensor register-keys that exist in the active profile."""
+        return [k for k in self.OPTIONAL_SENSOR_KEYS if k in self.registers]
+
     async def _read_registers(self, address: int, count: int):
         """Read holding registers (pymodbus API-compatible)."""
         kwargs = {"address": address, "count": count, _SLAVE_KWARG: self.unit_id}
@@ -149,13 +161,20 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         return await self.client.write_register(**kwargs)
 
     async def _async_update_data(self) -> Dict[str, Any]:
-        """Fetch data from Modbus device."""
+        """Fetch data from Modbus device (dispatch by platform)."""
         # Do NOT manually call connect() here on every poll — pymodbus reconnects
         # automatically. Manually reconnecting collides with that and can spin
         # the event loop. If not connected, report a failed update cleanly.
         if not self.client.connected:
             raise UpdateFailed("Modbus client not connected")
 
+        from .profiles import PLATFORM_PUSHPULL
+        if self.profile.get("key") == PLATFORM_PUSHPULL:
+            return await self._update_pushpull()
+        return await self._update_kwl_zentral()
+
+    async def _update_kwl_zentral(self) -> Dict[str, Any]:
+        """Fetch data for the central KWL platform (Welt A/B)."""
         try:
             data = {}
             
@@ -238,6 +257,14 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                     high, low = res.registers[0], res.registers[1]
                     data[key] = (high << 16) | low
 
+            # Optionale Sensoren (nur die, die als vorhanden erkannt wurden)
+            for key in self._optional_sensor_keys():
+                if not self.feature_present(key):
+                    continue
+                res = await self._read_registers(self._addr(key), self._width(key))
+                if not res.isError():
+                    data[key] = res.registers[0] * self._scale(key)
+
             # --- Sommermodus / Nachtkühlung ---
             await self._evaluate_summer_mode(data)
 
@@ -248,7 +275,54 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         except Exception as err:
             raise UpdateFailed(f"Unexpected error: {err}")
 
-    async def _evaluate_summer_mode(self, data: Dict[str, Any]) -> None:
+    async def _update_pushpull(self) -> Dict[str, Any]:
+        """Fetch data for the PushPull platform (Welt C).
+
+        Slim register set: Betriebsart (200), Lüftungsstufe (201), filter
+        runtime (300), humidity (301, direct %), error code (302), and
+        operating hours split into separate hours(0-23)+days registers.
+        """
+        try:
+            data = {}
+
+            # Betriebsart (200): 0=WRG, 1=Quer  /  Lüftungsstufe (201): 0..5
+            for key in ("betriebsart", "lueftungsstufe",
+                        "sensorbetrieb_wrg", "sensorbetrieb_quer"):
+                res = await self._read_registers(self._addr(key), 1)
+                if not res.isError():
+                    data[key] = res.registers[0]
+
+            # Filter-Restlaufzeit (300), Feuchte (301, direkt %), Fehlercode (302)
+            for key in ("filter_restlaufzeit", "humidity_fmr", "error_code"):
+                res = await self._read_registers(self._addr(key), 1)
+                if not res.isError():
+                    data[key] = res.registers[0] * self._scale(key)
+
+            # Betriebsstunden: je Zustand getrennte Stunden(0-23)+Tage-Register
+            # -> Gesamtstunden = Tage*24 + Stunden
+            bh_pairs = {
+                "bh_aus": ("bh_aus_h", "bh_aus_d"),
+                "bh_fl": ("bh_fl_h", "bh_fl_d"),
+                "bh_rl1": ("bh_rl1_h", "bh_rl1_d"),
+                "bh_rl2": ("bh_rl2_h", "bh_rl2_d"),
+                "bh_nl": ("bh_nl_h", "bh_nl_d"),
+                "bh_il": ("bh_il_h", "bh_il_d"),
+                "bh_gesamt": ("bh_gesamt_h", "bh_gesamt_d"),
+            }
+            for out_key, (h_key, d_key) in bh_pairs.items():
+                rh = await self._read_registers(self._addr(h_key), 1)
+                rd = await self._read_registers(self._addr(d_key), 1)
+                if not rh.isError() and not rd.isError():
+                    data[out_key] = rd.registers[0] * 24 + rh.registers[0]
+
+            return data
+
+        except ModbusException as err:
+            raise UpdateFailed(f"Modbus error: {err}")
+        except Exception as err:
+            raise UpdateFailed(f"Unexpected error: {err}")
+
+
         """Apply night-cooling logic when summer mode is enabled.
 
         Rules (only when self.summer_mode is True):
@@ -447,15 +521,15 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         self._boost_until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
         await self.async_write_raw("stosslueftung", 1)
 
-    async def async_set_temp_register(self, register_key: str, celsius: float, scale: float = 10.0):
-        """Write a temperature setpoint to a register.
+    async def async_set_temp_register(self, register_key: str, celsius: float):
+        """Write a temperature setpoint, scaling per the profile.
 
-        `scale` is the factor between the displayed °C value and the raw
-        register value. Most registers use ×10 (e.g. 23.0 °C -> 230), but
-        some (e.g. 301 T-Zuluft min. on this firmware) store the value
-        directly (scale = 1).
+        The profile's ``scale`` is the READ factor (displayed = raw * scale).
+        Writing is the inverse: raw = displayed / scale. E.g. scale 0.1 ->
+        23.0 °C becomes raw 230; scale 1.0 -> 14.0 °C becomes raw 14.
         """
-        raw = int(round(celsius * scale))
+        scale = self._scale(register_key)
+        raw = int(round(celsius / scale)) if scale else int(round(celsius))
         await self.async_write_raw(register_key, raw)
 
     async def async_shutdown(self):

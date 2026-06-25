@@ -31,6 +31,13 @@ async def async_setup_entry(
     coordinator: MaicoKWLCoordinator = hass.data[DOMAIN][config_entry.entry_id][
         "coordinator"
     ]
+
+    # PushPull (Welt C) hat keine Nachtkühlung/Bypass/Temperaturen –
+    # diese Plattform legt dort keine Entitäten an.
+    from .profiles import PLATFORM_PUSHPULL
+    if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
+        return
+
     async_add_entities([
         MaicoKWLCoolMinDiffNumber(coordinator, config_entry),
         MaicoKWLCoolTargetNumber(coordinator, config_entry),
@@ -42,7 +49,7 @@ async def async_setup_entry(
             "T-Raum max. (Sommer)", "mdi:thermometer-high", 18.0, 30.0),
         MaicoKWLDeviceTempNumber(
             coordinator, config_entry, "t_zuluft_min_kuehlen",
-            "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0, scale=1.0),
+            "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0),
         MaicoKWLBoostDurationNumber(coordinator, config_entry),
     ])
 
@@ -196,10 +203,9 @@ class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
 
     _attr_native_step = 0.5
 
-    def __init__(self, coordinator, config_entry, register_key, name, icon, vmin, vmax, scale=10.0):
+    def __init__(self, coordinator, config_entry, register_key, name, icon, vmin, vmax):
         super().__init__(coordinator, config_entry)
         self._register_key = register_key
-        self._scale = scale
         legacy = config_entry.data.get("legacy_ids", False)
         self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, register_key)
         self._attr_name = name
@@ -218,9 +224,8 @@ class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
         return self.coordinator.last_update_success
 
     async def async_set_native_value(self, value: float) -> None:
-        await self.coordinator.async_set_temp_register(
-            self._register_key, value, self._scale
-        )
+        # Scaling comes from the profile (single source of truth).
+        await self.coordinator.async_set_temp_register(self._register_key, value)
 
     @property
     def should_poll(self) -> bool:

@@ -36,6 +36,14 @@ async def async_setup_entry(
         "coordinator"
     ]
 
+    from .profiles import PLATFORM_PUSHPULL
+    if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
+        async_add_entities(
+            _build_pushpull_sensors(coordinator, config_entry),
+            update_before_add=True,
+        )
+        return
+
     entities = [
         # Temperaturen
         MaicoKWLTemperatureSensor(coordinator, config_entry, "temp_aussenluft", "Temperatur - Frischluft (von draußen)"),
@@ -87,6 +95,25 @@ async def async_setup_entry(
         MaicoKWLDiagnosticSensor(coordinator, config_entry, "fehler", "Fehler", ("fehler_1", "fehler_2")),
         MaicoKWLDiagnosticSensor(coordinator, config_entry, "hinweis", "Hinweis", ("hinweis_1", "hinweis_2")),
     ]
+
+    # Optionale externe Sensoren – nur anlegen, wenn das Gerät sie hat
+    # (Feature-Erkennung). Bei dauerhaftem 0-Wert standardmäßig deaktiviert.
+    OPTIONAL_SENSORS = [
+        ("co2_sensor_2", "CO₂ Sensor 2", SensorDeviceClass.CO2, "ppm"),
+        ("co2_sensor_3", "CO₂ Sensor 3", SensorDeviceClass.CO2, "ppm"),
+        ("co2_sensor_4", "CO₂ Sensor 4", SensorDeviceClass.CO2, "ppm"),
+        ("voc_sensor_1", "VOC Sensor 1", None, "ppb"),
+        ("voc_sensor_2", "VOC Sensor 2", None, "ppb"),
+        ("rf_sensor_1", "Luftfeuchte Sensor 1 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
+        ("rf_sensor_2", "Luftfeuchte Sensor 2 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
+        ("rf_sensor_3", "Luftfeuchte Sensor 3 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
+        ("rf_sensor_4", "Luftfeuchte Sensor 4 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
+    ]
+    for key, name, devclass, unit in OPTIONAL_SENSORS:
+        if key in coordinator.registers and coordinator.feature_present(key):
+            entities.append(
+                MaicoKWLOptionalSensor(coordinator, config_entry, key, name, devclass, unit)
+            )
 
     async_add_entities(entities, update_before_add=True)
 
@@ -547,3 +574,76 @@ class MaicoKWLDiagnosticSensor(MaicoKWLBaseSensor):
         for k in self._source_keys:
             attrs[k] = self.coordinator.data.get(k, 0)
         return attrs
+
+
+class MaicoKWLOptionalSensor(MaicoKWLBaseSensor):
+    """An optional external sensor (CO2/VOC/humidity), feature-detected.
+
+    Only instantiated when the device exposes the register. Disabled by
+    default in the entity registry, so a persistently-zero sensor doesn't
+    clutter the dashboard but can be enabled by the user if wanted.
+    """
+
+    _attr_entity_registry_enabled_default = False
+
+    def __init__(self, coordinator, config_entry, data_key, name, device_class, unit):
+        super().__init__(coordinator, config_entry, data_key, name)
+        self._data_key = data_key
+        if device_class is not None:
+            self._attr_device_class = device_class
+        self._attr_native_unit_of_measurement = unit
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+
+    @property
+    def native_value(self):
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._data_key)
+
+
+# ---------------------------------------------------------------------------
+# PushPull (Welt C) — eigene schlanke Sensoren
+# ---------------------------------------------------------------------------
+
+PUSHPULL_BETRIEBSART = {0: "Wärmerückgewinnung", 1: "Querlüftung"}
+PUSHPULL_STUFE = {
+    0: "Aus", 1: "Stufe 1", 2: "Stufe 2", 3: "Stufe 3", 4: "Stufe 4", 5: "Intensiv",
+}
+
+
+def _build_pushpull_sensors(coordinator, config_entry):
+    """Build the sensor entities for a PushPull device."""
+    return [
+        MaicoKWLPushPullMappedSensor(
+            coordinator, config_entry, "betriebsart", "Betriebsart",
+            PUSHPULL_BETRIEBSART, "mdi:swap-horizontal"),
+        MaicoKWLPushPullMappedSensor(
+            coordinator, config_entry, "lueftungsstufe", "Lüftungsstufe",
+            PUSHPULL_STUFE, "mdi:fan"),
+        MaicoKWLOptionalSensor(
+            coordinator, config_entry, "humidity_fmr",
+            "Luftfeuchte", SensorDeviceClass.HUMIDITY, PERCENTAGE),
+        MaicoKWLFilterDaysSensor(
+            coordinator, config_entry, "filter_restlaufzeit", "Filterwechsel"),
+        MaicoKWLOperatingHoursSensor(
+            coordinator, config_entry, "bh_gesamt", "Betriebsstunden Gesamt"),
+    ]
+
+
+class MaicoKWLPushPullMappedSensor(MaicoKWLBaseSensor):
+    """A PushPull sensor that maps a raw value to a German text label."""
+
+    def __init__(self, coordinator, config_entry, data_key, name, mapping, icon):
+        super().__init__(coordinator, config_entry, data_key, name)
+        self._data_key = data_key
+        self._mapping = mapping
+        self._attr_icon = icon
+
+    @property
+    def native_value(self):
+        if self.coordinator.data is None:
+            return None
+        raw = self.coordinator.data.get(self._data_key)
+        if raw is None:
+            return None
+        return self._mapping.get(raw, f"Unbekannt ({raw})")

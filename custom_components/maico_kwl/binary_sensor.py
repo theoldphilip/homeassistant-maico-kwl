@@ -24,6 +24,13 @@ async def async_setup_entry(
         "coordinator"
     ]
 
+    # PushPull (Welt C) hat keine Nachtkühlung/Bypass/Temperaturen –
+    # diese Plattform legt dort keine Entitäten an.
+    from .profiles import PLATFORM_PUSHPULL
+    if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
+        return
+
+
     # Read configurable filter warning threshold (Tage)
     filter_warning_days = config_entry.data.get("filter_warning_days", FILTER_WARNING_DAYS)
 

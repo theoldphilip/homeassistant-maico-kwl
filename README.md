@@ -193,6 +193,31 @@ Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Ma
 
 > ⚠️ **Hinweis zur HA-Nachtkühlung:** Der HA-**Sommermodus** regelt zusätzlich aktiv die Lüftungsstufe hoch (Intensiv), während das Gerät nur den Bypass öffnet. Beide ergänzen sich. Damit sie in dieselbe Richtung arbeiten, sollte **T-Raum max.** nicht höher als die gewünschte Kühl-Zieltemperatur stehen.
 
+## Optionale Sensoren
+
+Geräte der KWL-Zentral-Plattform können zusätzliche Sensoren besitzen (mehrere CO₂-, VOC- und externe Feuchtesensoren). Diese werden **automatisch erkannt**:
+
+- Meldet das Gerät beim Lesen einen Modbus-Fehler für ein Register, gilt der Sensor als **nicht vorhanden** und es wird keine Entität angelegt.
+- Existiert das Register, wird die Entität angelegt, ist aber **standardmäßig deaktiviert**. So bleibt das Dashboard übersichtlich. Wer einen dieser Sensoren verbaut hat, aktiviert die Entität einfach in den Geräteeinstellungen (Einstellungen → Geräte & Dienste → Gerät → die deaktivierte Entität → aktivieren).
+
+Betroffen sind: `CO₂ Sensor 2–4`, `VOC Sensor 1–2`, `Luftfeuchte Sensor 1–4 (extern)`.
+
+## PushPull (PP 45 / PPB 30)
+
+Die dezentralen PushPull-Geräte nutzen eine andere Steuerungsplattform (RLS 45 K) mit eigenem, schlankem Registersatz. Angebunden werden sie über ein **LAN-Gateway**, das Modbus TCP ↔ RTU wandelt – aus Sicht von Home Assistant also normales Modbus TCP.
+
+Bereitgestellte Entitäten:
+
+| Entität | Beschreibung |
+|---|---|
+| Betriebsart | Wärmerückgewinnung / Querlüftung |
+| Lüftungsstufe | Aus / Stufe 1–4 / Intensiv |
+| Luftfeuchte | relative Feuchte in % |
+| Filterwechsel | Restlaufzeit in Tagen |
+| Betriebsstunden Gesamt | aus getrennten Stunden-/Tage-Registern berechnet |
+
+> PushPull-Geräte haben **keinen** Bypass und keine Temperaturfühler wie die zentralen KWL – Sommermodus/Nachtkühlung gibt es hier daher nicht.
+
 ## Modbus-Register
 
 Die Integration verwendet folgende Holding-Register (Unit-ID 1):

@@ -22,6 +22,13 @@ async def async_setup_entry(
     coordinator: MaicoKWLCoordinator = hass.data[DOMAIN][config_entry.entry_id][
         "coordinator"
     ]
+
+    # PushPull (Welt C) hat keine Nachtkühlung/Bypass/Temperaturen –
+    # diese Plattform legt dort keine Entitäten an.
+    from .profiles import PLATFORM_PUSHPULL
+    if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
+        return
+
     async_add_entities([MaicoKWLBoostButton(coordinator, config_entry)])
 
 
