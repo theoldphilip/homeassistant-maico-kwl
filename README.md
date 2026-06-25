@@ -1,5 +1,7 @@
 # Maico KWL – Home Assistant Integration
 
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5?style=flat-square)](https://github.com/hacs/integration) [![PayPal](https://img.shields.io/badge/PayPal-Spenden-00457C?logo=paypal&logoColor=white&style=flat-square)](https://www.paypal.com/donate/?hosted_button_id=SLNW2MCC268SG)
+
 Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung von **Maico Lüftungsanlagen** (KWL) über Modbus TCP.
 
 Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig. Bei der Einrichtung wird das Modell ausgewählt; vorhandene optionale Sensoren werden automatisch erkannt.
@@ -223,3 +225,9 @@ Dieses Projekt ist ein privates, inoffizielles Hobbyprojekt und steht in keiner 
 ## Lizenz
 
 MIT – siehe [LICENSE](LICENSE).
+
+## Unterstützung
+
+Dieses Projekt entsteht in der Freizeit und ist kostenlos. Wenn es dir hilft und du „Danke" sagen möchtest, freue ich mich über einen Kaffee. ☕ Völlig freiwillig – die Integration bleibt natürlich für alle frei nutzbar.
+
+[![Mit PayPal spenden](https://img.shields.io/badge/PayPal-Spenden-00457C?logo=paypal&logoColor=white&style=for-the-badge)](https://www.paypal.com/donate/?hosted_button_id=SLNW2MCC268SG)
