@@ -1,5 +1,5 @@
 {
-  "name": "Maico WS 300 Flat",
+  "name": "Maico KWL (Trio / WR / WS / PushPull)",
   "content_type": "integration",
   "homeassistant": "2024.1.0",
   "render_readme": true

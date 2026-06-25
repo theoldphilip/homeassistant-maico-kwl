@@ -1,7 +1,7 @@
 """Constants for Maico KWL integration."""
 
 DOMAIN = "maico_kwl"
-DEVICE_MODEL = "Maico WS 300 Flat"
+DEVICE_MODEL = "Maico KWL"
 
 # Modbus Configuration
 DEFAULT_MODBUS_PORT = 502

@@ -39,11 +39,20 @@ except Exception:  # pragma: no cover
 class MaicoKWLCoordinator(DataUpdateCoordinator):
     """Coordinator for fetching Maico KWL data."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int, unit_id: int, scan_interval: int):
+    def __init__(self, hass: HomeAssistant, host: str, port: int, unit_id: int, scan_interval: int, profile_key: str = None):
         """Initialize the coordinator."""
         self.host = host
         self.port = port
         self.unit_id = unit_id
+        # Load the device profile (register map etc.). Falls back to the
+        # default (kwl_zentral / WS 300 Flat) for legacy entries.
+        from .profiles import get_profile
+        self.profile = get_profile(profile_key)
+        self.registers = self.profile["registers"]
+        # Optional per-install scaling overrides (firmware-dependent regs).
+        self._scaling_overrides: dict = {}
+        # Features detected absent at runtime (Modbus error on probe).
+        self._absent_features: set = set()
         # timeout=5 prevents the event loop from hanging on a stalled connect.
         # pymodbus handles automatic reconnects internally after the first connect.
         self.client = AsyncModbusTcpClient(host=host, port=port, timeout=5)
@@ -76,15 +85,63 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         """Establish the initial connection. Returns True on success."""
         try:
             await self.client.connect()
-            return self.client.connected
+            connected = self.client.connected
+            if connected:
+                await self._probe_optional_features()
+            return connected
         except Exception as err:
             _LOGGER.error(f"Initial connection to {self.host} failed: {err}")
             return False
+
+    async def _probe_optional_features(self) -> None:
+        """Detect which optional registers the device actually has (Option A).
+
+        A Modbus error on read means the register does not belong to this
+        device class -> the feature is absent and its entity is not created.
+        A readable register (even value 0) is considered present; the entity
+        platforms decide whether to disable a persistently-zero entity.
+        """
+        self._absent_features = set()
+        for key, regdef in self.registers.items():
+            if not regdef.optional:
+                continue
+            try:
+                res = await self._read_registers(regdef.address, regdef.width)
+                if res.isError():
+                    self._absent_features.add(key)
+            except Exception:
+                # Treat a hard exception like an absent feature (safer).
+                self._absent_features.add(key)
+        if self._absent_features:
+            _LOGGER.debug("Absent optional features: %s", sorted(self._absent_features))
+
+    def feature_present(self, key: str) -> bool:
+        """True if an optional feature/register is present on this device."""
+        return key not in self._absent_features
 
     async def _read_registers(self, address: int, count: int):
         """Read holding registers (pymodbus API-compatible)."""
         kwargs = {"address": address, "count": count, _SLAVE_KWARG: self.unit_id}
         return await self.client.read_holding_registers(**kwargs)
+
+    def _addr(self, key: str) -> int:
+        """Resolve a register key to its Modbus address."""
+        return self.registers[key].address
+
+    def _scale(self, key: str) -> float:
+        """Resolve the scale factor for a register key.
+
+        A per-install override (from config options) wins over the profile
+        default, so firmware-dependent registers can be corrected without
+        code changes.
+        """
+        if key in self._scaling_overrides:
+            return self._scaling_overrides[key]
+        return self.registers[key].scale
+
+    def _width(self, key: str) -> int:
+        """Number of Modbus registers this key spans (2 = 32-bit)."""
+        return self.registers[key].width
 
     async def _write_register(self, address: int, value: int):
         """Write a single holding register (pymodbus API-compatible)."""
@@ -102,14 +159,13 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         try:
             data = {}
             
-            # Read all registers in one batch where possible
             # Betriebsart
-            result = await self._read_registers(MODBUS_REGISTERS["betriebsart"], 1)
+            result = await self._read_registers(self._addr("betriebsart"), 1)
             if not result.isError():
                 data["betriebsart"] = result.registers[0]
             
             # Lüftungsstufe + Drehzahlen + Volumenströme (650-654)
-            result = await self._read_registers(MODBUS_REGISTERS["lueftungsstufe"], 5)
+            result = await self._read_registers(self._addr("lueftungsstufe"), 5)
             if not result.isError():
                 data["lueftungsstufe"] = result.registers[0]
                 data["drehzahl_zuluft"] = result.registers[1]
@@ -118,76 +174,71 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 data["volumenstrom_abluft"] = result.registers[4]
             
             # Filter Restlaufzeiten (655-657)
-            result = await self._read_registers(MODBUS_REGISTERS["filter_restlaufzeit_zuluft"], 3)
+            result = await self._read_registers(self._addr("filter_restlaufzeit_zuluft"), 3)
             if not result.isError():
                 data["filter_restlaufzeit_zuluft"] = result.registers[0]
                 data["filter_restlaufzeit_aussenluft"] = result.registers[1]
                 data["filter_restlaufzeit_abluft"] = result.registers[2]
             
-            # Temperaturen (703-706) - int16 mit scale 0.1
-            result = await self._read_registers(MODBUS_REGISTERS["temp_aussenluft"], 4)
+            # Temperaturen (703-706) - int16, Skalierung aus Profil
+            result = await self._read_registers(self._addr("temp_aussenluft"), 4)
             if not result.isError():
-                # Signed 16-bit conversion
-                data["temp_aussenluft"] = self._int16_to_float(result.registers[0], 0.1)
-                data["temp_zuluft"] = self._int16_to_float(result.registers[1], 0.1)
-                data["temp_abluft"] = self._int16_to_float(result.registers[2], 0.1)
-                data["temp_fortluft"] = self._int16_to_float(result.registers[3], 0.1)
+                data["temp_aussenluft"] = self._int16_to_float(result.registers[0], self._scale("temp_aussenluft"))
+                data["temp_zuluft"] = self._int16_to_float(result.registers[1], self._scale("temp_zuluft"))
+                data["temp_abluft"] = self._int16_to_float(result.registers[2], self._scale("temp_abluft"))
+                data["temp_fortluft"] = self._int16_to_float(result.registers[3], self._scale("temp_fortluft"))
             
-            # Humidity + CO2 (750, 755)
-            result = await self._read_registers(MODBUS_REGISTERS["humidity_abluft"], 1)
+            # Humidity (750) + CO2 (755) - Skalierung aus Profil/Override
+            result = await self._read_registers(self._addr("humidity_abluft"), 1)
             if not result.isError():
-                data["humidity_abluft"] = result.registers[0]
+                data["humidity_abluft"] = result.registers[0] * self._scale("humidity_abluft")
             
-            result = await self._read_registers(MODBUS_REGISTERS["co2_abluft"], 1)
+            result = await self._read_registers(self._addr("co2_abluft"), 1)
             if not result.isError():
-                data["co2_abluft"] = result.registers[0]
+                data["co2_abluft"] = result.registers[0] * self._scale("co2_abluft")
             
             # Schaltzustände (800-802)
-            result = await self._read_registers(MODBUS_REGISTERS["schalter_zuluft"], 3)
+            result = await self._read_registers(self._addr("schalter_zuluft"), 3)
             if not result.isError():
                 data["schalter_zuluft"] = bool(result.registers[0])
                 data["schalter_abluft"] = bool(result.registers[1])
                 data["schalter_bypass"] = bool(result.registers[2])
 
             # --- Erweiterte Register ---
-            # Temperatur Raum (700, int16 ×10)
-            result = await self._read_registers(MODBUS_REGISTERS["temp_raum"], 1)
+            # Temperatur Raum (700)
+            result = await self._read_registers(self._addr("temp_raum"), 1)
             if not result.isError():
-                data["temp_raum"] = self._int16_to_float(result.registers[0], 0.1)
+                data["temp_raum"] = self._int16_to_float(result.registers[0], self._scale("temp_raum"))
 
             # Konfig-Sollwerte (schreibbar, hier nur lesen für Anzeige)
-            # t_raum_max (302): int16 ×10  ->  Rohwert 230 = 23,0 °C
-            res = await self._read_registers(MODBUS_REGISTERS["t_raum_max"], 1)
+            res = await self._read_registers(self._addr("t_raum_max"), 1)
             if not res.isError():
-                data["t_raum_max"] = self._int16_to_float(res.registers[0], 0.1)
-            # t_zuluft_min_kuehlen (301): NICHT ×10 auf dieser Firmware
-            #   -> Rohwert 14 = 14,0 °C (verifiziert gegen Maico-App)
-            res = await self._read_registers(MODBUS_REGISTERS["t_zuluft_min_kuehlen"], 1)
+                data["t_raum_max"] = self._int16_to_float(res.registers[0], self._scale("t_raum_max"))
+            res = await self._read_registers(self._addr("t_zuluft_min_kuehlen"), 1)
             if not res.isError():
-                data["t_zuluft_min_kuehlen"] = self._int16_to_float(res.registers[0], 1.0)
+                data["t_zuluft_min_kuehlen"] = self._int16_to_float(res.registers[0], self._scale("t_zuluft_min_kuehlen"))
 
             # Stoßlüftung (551), Dauer (153)
             for key in ("stosslueftung", "dauer_lueftungsstufe"):
-                res = await self._read_registers(MODBUS_REGISTERS[key], 1)
+                res = await self._read_registers(self._addr(key), 1)
                 if not res.isError():
                     data[key] = res.registers[0]
 
             # Fehler/Hinweise (401-404, Bitfelder)
             for key in ("fehler_1", "fehler_2", "hinweis_1", "hinweis_2"):
-                res = await self._read_registers(MODBUS_REGISTERS[key], 1)
+                res = await self._read_registers(self._addr(key), 1)
                 if not res.isError():
                     data[key] = res.registers[0]
 
-            # Betriebsstunden (850-859): je 2 Register = 32 Bit (High-Word/Low-Word)
+            # Betriebsstunden: je 2 Register = 32 Bit (High-Word/Low-Word)
             for key in ("bh_feuchteschutz", "bh_reduziert", "bh_nenn",
                         "bh_intensiv", "bh_gesamt"):
-                res = await self._read_registers(MODBUS_REGISTERS[key], 2)
+                res = await self._read_registers(self._addr(key), self._width(key))
                 if not res.isError() and len(res.registers) >= 2:
                     high, low = res.registers[0], res.registers[1]
                     data[key] = (high << 16) | low
 
             # --- Sommermodus / Nachtkühlung ---
-            # Evaluated after a successful read, using the fresh temperatures.
             await self._evaluate_summer_mode(data)
 
             return data
@@ -293,16 +344,16 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                     "Sommermodus: Nachtkühlung an (außen %.1f°C < innen %.1f°C)",
                     outdoor, indoor,
                 )
-                await self._write_register(MODBUS_REGISTERS["betriebsart"], 1)  # Manuell
+                await self._write_register(self._addr("betriebsart"), 1)  # Manuell
                 await self._write_register(
-                    MODBUS_REGISTERS["lueftungsstufe_write"], SUMMER_COOL_STUFE
+                    self._addr("lueftungsstufe_write"), SUMMER_COOL_STUFE
                 )
             elif action == "off":
                 _LOGGER.info(
                     "Sommermodus: Anlage aus (außen %.1f°C >= innen %.1f°C oder Ziel erreicht)",
                     outdoor, indoor,
                 )
-                await self._write_register(MODBUS_REGISTERS["betriebsart"], 0)  # Aus
+                await self._write_register(self._addr("betriebsart"), 0)  # Aus
             elif action == "idle":
                 # Neutral zone: not actively cooling, but keep a minimal air
                 # exchange (Schutzlüftung) so humidity/CO2 don't build up.
@@ -310,9 +361,9 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                     "Sommermodus: Bereit/Schutzlüftung (außen %.1f°C, innen %.1f°C)",
                     outdoor, indoor,
                 )
-                await self._write_register(MODBUS_REGISTERS["betriebsart"], 1)  # Manuell
+                await self._write_register(self._addr("betriebsart"), 1)  # Manuell
                 await self._write_register(
-                    MODBUS_REGISTERS["lueftungsstufe_write"], SUMMER_IDLE_STUFE
+                    self._addr("lueftungsstufe_write"), SUMMER_IDLE_STUFE
                 )
 
             self._summer_last_action = action
@@ -339,7 +390,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         try:
             stufe = max(0, min(4, stufe))
             result = await self._write_register(
-                MODBUS_REGISTERS["lueftungsstufe_write"], stufe
+                self._addr("lueftungsstufe_write"), stufe
             )
             
             if result.isError():
@@ -355,7 +406,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         """Set operation mode (Betriebsart)."""
         try:
             mode = max(0, min(5, mode))
-            result = await self._write_register(MODBUS_REGISTERS["betriebsart"], mode)
+            result = await self._write_register(self._addr("betriebsart"), mode)
             
             if result.isError():
                 raise UpdateFailed(f"Error setting Betriebsart: {result}")
@@ -373,7 +424,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         The caller is responsible for passing an already-scaled raw value.
         """
         try:
-            result = await self._write_register(MODBUS_REGISTERS[register_key], value)
+            result = await self._write_register(self._addr(register_key), value)
             if result.isError():
                 raise UpdateFailed(f"Error writing {register_key}: {result}")
             await self.async_request_refresh()

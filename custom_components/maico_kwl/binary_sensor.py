@@ -9,6 +9,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, FILTER_WARNING_DAYS, DEVICE_MODEL
 from .coordinator import MaicoKWLCoordinator
+from .profiles import build_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,12 +61,14 @@ class MaicoKWLFilterAlert(BinarySensorEntity):
         self._data_key = data_key
         self._filter_warning_days = filter_warning_days
         self._attr_name = display_name
-        self._attr_unique_id = f"maico_kwl_{data_key}_alert"
+        legacy = config_entry.data.get("legacy_ids", False)
+        model = config_entry.data.get("model", DEVICE_MODEL)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, f"{data_key}_alert")
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": DEVICE_MODEL,
+            "name": model,
             "manufacturer": "Maico",
-            "model": "WS 300 Flat",
+            "model": model,
         }
 
     @property

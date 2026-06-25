@@ -8,6 +8,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, DEVICE_MODEL
 from .coordinator import MaicoKWLCoordinator
+from .profiles import build_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,18 +33,20 @@ class MaicoKWLBoostButton(ButtonEntity):
     """
 
     _attr_name = "Stoßlüftung"
-    _attr_unique_id = "maico_kwl_stosslueftung"
     _attr_has_entity_name = True
     _attr_icon = "mdi:fan-plus"
 
     def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
         self.coordinator = coordinator
         self._config_entry = config_entry
+        legacy = config_entry.data.get("legacy_ids", False)
+        model = config_entry.data.get("model", DEVICE_MODEL)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, "stosslueftung")
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": DEVICE_MODEL,
+            "name": model,
             "manufacturer": "Maico",
-            "model": "WS 300 Flat",
+            "model": model,
         }
 
     @property

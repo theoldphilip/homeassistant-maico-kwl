@@ -17,6 +17,7 @@ from .const import (
     DEFAULT_MIN_RUNTIME,
 )
 from .coordinator import MaicoKWLCoordinator
+from .profiles import build_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,15 +53,20 @@ class _MaicoKWLBaseNumber(NumberEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_mode = NumberMode.BOX
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _id_key: str | None = None  # subclasses set this for their unique_id
 
     def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
         self.coordinator = coordinator
         self._config_entry = config_entry
+        legacy = config_entry.data.get("legacy_ids", False)
+        model = config_entry.data.get("model", DEVICE_MODEL)
+        if self._id_key is not None:
+            self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, self._id_key)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": DEVICE_MODEL,
+            "name": model,
             "manufacturer": "Maico",
-            "model": "WS 300 Flat",
+            "model": model,
         }
 
 
@@ -68,7 +74,7 @@ class MaicoKWLCoolMinDiffNumber(_MaicoKWLBaseNumber):
     """Minimum outdoor/indoor difference to start night cooling."""
 
     _attr_name = "Kühlung Mindest-Differenz"
-    _attr_unique_id = "maico_kwl_cool_min_diff"
+    _id_key = "cool_min_diff"
     _attr_icon = "mdi:thermometer-minus"
     _attr_native_min_value = 0.5
     _attr_native_max_value = 10.0
@@ -97,7 +103,7 @@ class MaicoKWLCoolTargetNumber(_MaicoKWLBaseNumber):
     """Indoor target temperature to cool down to."""
 
     _attr_name = "Kühlung Zieltemperatur"
-    _attr_unique_id = "maico_kwl_cool_target"
+    _id_key = "cool_target"
     _attr_icon = "mdi:thermometer-check"
     _attr_native_min_value = 16.0
     _attr_native_max_value = 28.0
@@ -126,7 +132,7 @@ class MaicoKWLCoolHysteresisNumber(_MaicoKWLBaseNumber):
     """Hysteresis (dead band) around the target temperature, anti-cycling."""
 
     _attr_name = "Kühlung Hysterese"
-    _attr_unique_id = "maico_kwl_cool_hysteresis"
+    _id_key = "cool_hysteresis"
     _attr_icon = "mdi:arrow-expand-vertical"
     _attr_native_min_value = 0.0
     _attr_native_max_value = 2.0
@@ -155,7 +161,7 @@ class MaicoKWLMinRuntimeNumber(_MaicoKWLBaseNumber):
     """Minimum hold time (minutes) after a switch, anti-cycling."""
 
     _attr_name = "Kühlung Mindest-Laufzeit"
-    _attr_unique_id = "maico_kwl_min_runtime"
+    _id_key = "min_runtime"
     _attr_icon = "mdi:timer-lock-outline"
     _attr_native_unit_of_measurement = "min"
     _attr_native_min_value = 5
@@ -194,7 +200,8 @@ class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
         super().__init__(coordinator, config_entry)
         self._register_key = register_key
         self._scale = scale
-        self._attr_unique_id = f"maico_kwl_{register_key}"
+        legacy = config_entry.data.get("legacy_ids", False)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, register_key)
         self._attr_name = name
         self._attr_icon = icon
         self._attr_native_min_value = vmin
@@ -229,7 +236,7 @@ class MaicoKWLBoostDurationNumber(_MaicoKWLBaseNumber):
     """Duration of the boost ventilation (register 153, minutes)."""
 
     _attr_name = "Dauer Stoßlüftung"
-    _attr_unique_id = "maico_kwl_dauer_lueftungsstufe"
+    _id_key = "dauer_lueftungsstufe"
     _attr_icon = "mdi:timer-sand"
     _attr_native_unit_of_measurement = "min"
     _attr_native_min_value = 5

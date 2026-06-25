@@ -11,23 +11,35 @@ from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+)
 
 from .const import DOMAIN, DEFAULT_MODBUS_PORT
+from .profiles import all_models, model_to_profile_key, get_profile, DEFAULT_MODEL
 
 _LOGGER = logging.getLogger(__name__)
 
-STEP_USER_DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_HOST): cv.string,
-    vol.Optional("filter_warning_days", default=7): cv.positive_int,
-})
+
+def _user_schema(default_model: str = DEFAULT_MODEL) -> vol.Schema:
+    """Build the user step schema with a model dropdown."""
+    models = all_models()
+    return vol.Schema({
+        vol.Required(CONF_HOST): cv.string,
+        vol.Required("model", default=default_model): SelectSelector(
+            SelectSelectorConfig(
+                options=models,
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        ),
+        vol.Optional("filter_warning_days", default=7): cv.positive_int,
+    })
 
 
 async def validate_modbus_connection(host: str, port: int = DEFAULT_MODBUS_PORT, unit_id: int = 1) -> bool:
-    """Validate Modbus connection with a hard timeout.
-
-    The whole check is wrapped in asyncio.timeout so a stalled connect can
-    never hang the config flow (which would take the event loop down).
-    """
+    """Validate Modbus connection with a hard timeout."""
     import inspect
     client = AsyncModbusTcpClient(host=host, port=port, timeout=5)
     try:
@@ -35,11 +47,9 @@ async def validate_modbus_connection(host: str, port: int = DEFAULT_MODBUS_PORT,
             connected = await client.connect()
             if not connected:
                 return False
-            # Detect pymodbus API (3.10+ uses device_id, older uses slave)
             params = inspect.signature(client.read_holding_registers).parameters
             slave_kwarg = "device_id" if "device_id" in params else "slave"
             kwargs = {"address": 550, "count": 1, slave_kwarg: unit_id}
-            # Try to read Betriebsart register to verify connection
             result = await client.read_holding_registers(**kwargs)
             return not result.isError()
     except (asyncio.TimeoutError, Exception) as err:
@@ -55,7 +65,7 @@ async def validate_modbus_connection(host: str, port: int = DEFAULT_MODBUS_PORT,
 class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Maico KWL."""
 
-    VERSION = 1
+    VERSION = 2
 
     async def async_step_user(
         self, user_input: Optional[Dict[str, Any]] = None
@@ -64,32 +74,35 @@ class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: Dict[str, str] = {}
 
         if user_input is not None:
-            # Check if device is already configured
             await self.async_set_unique_id(user_input[CONF_HOST])
             self._abort_if_unique_id_configured()
 
-            # Validate Modbus connection (with defaults)
             if not await validate_modbus_connection(user_input[CONF_HOST]):
                 errors["base"] = "cannot_connect"
 
             if not errors:
+                model = user_input.get("model", DEFAULT_MODEL)
+                profile_key = model_to_profile_key(model)
+                profile = get_profile(profile_key)
                 return self.async_create_entry(
-                    title=f"Maico WS 300 Flat ({user_input[CONF_HOST]})",
+                    title=f"Maico {model} ({user_input[CONF_HOST]})",
                     data={
                         CONF_HOST: user_input[CONF_HOST],
                         "port": DEFAULT_MODBUS_PORT,
                         "unit_id": 1,
                         "scan_interval": 30,
                         "filter_warning_days": user_input.get("filter_warning_days", 7),
+                        "model": model,
+                        "profile": profile_key,
                     },
                 )
 
         return self.async_show_form(
             step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
+            data_schema=_user_schema(),
             errors=errors,
             description_placeholders={
-                "help_text": "Gib die IP-Adresse deiner Maico WS 300 Flat Lüftungsanlage ein."
+                "help_text": "Wähle dein Maico-Modell und gib die IP-Adresse der Anlage ein."
             },
         )
 

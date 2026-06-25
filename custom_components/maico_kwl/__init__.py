@@ -23,17 +23,52 @@ PLATFORMS: Final = [
 
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate old config entries to the multi-model format.
+
+    Version 1  -> created by the single-device (WS 300 Flat) integration.
+        These installs must keep their EXACT entity unique_ids so dashboards,
+        automations and the energy dashboard entry don't break. We therefore
+        tag them with ``legacy_ids: True`` and assume the WS 300 Flat profile.
+    Version 2  -> multi-model format (model + profile + per-entry unique ids).
+    """
+    from .profiles import DEFAULT_PROFILE_KEY, DEFAULT_MODEL
+
+    if entry.version < 2:
+        new_data = {**entry.data}
+        # Existing single-device installs: keep behaviour and IDs identical.
+        new_data.setdefault("profile", DEFAULT_PROFILE_KEY)
+        new_data.setdefault("model", DEFAULT_MODEL)
+        new_data["legacy_ids"] = True  # keep the original "maico_kwl_*" ids
+        hass.config_entries.async_update_entry(entry, data=new_data, version=2)
+        _LOGGER.info(
+            "Maico KWL: Bestehende Installation auf Multi-Modell-Format migriert "
+            "(Entity-IDs bleiben unverändert)."
+        )
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up integration from a config entry."""
     
     hass.data.setdefault(DOMAIN, {})
-    
+
+    # Determine the device profile. Existing installations created before the
+    # multi-model version have no "profile" key -> default to kwl_zentral
+    # (WS 300 Flat), which keeps their behaviour and entity_ids identical.
+    from .profiles import DEFAULT_PROFILE_KEY
+    profile_key = entry.data.get("profile", DEFAULT_PROFILE_KEY)
+    # legacy_ids: existing installs keep the original "maico_kwl_*" unique_ids;
+    # new installs get per-entry-unique ids so multiple devices don't collide.
+    legacy_ids = entry.data.get("legacy_ids", False)
+
     coordinator = MaicoKWLCoordinator(
         hass,
         entry.data[CONF_HOST],
         entry.data.get(CONF_PORT, 502),
         entry.data.get("unit_id", 1),
         entry.data.get("scan_interval", 30),
+        profile_key,
     )
     
     # Establish the initial connection once. If it fails, HA will retry setup
@@ -54,6 +89,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
+        "legacy_ids": legacy_ids,
+        "model": entry.data.get("model"),
     }
     
     # Setup platforms

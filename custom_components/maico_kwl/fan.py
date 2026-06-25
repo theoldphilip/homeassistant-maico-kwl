@@ -16,6 +16,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, DEVICE_MODEL, BETRIEBSART_MAPPING, LUEFTUNGSSTUFE_MAPPING
 from .coordinator import MaicoKWLCoordinator
+from .profiles import build_unique_id
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +52,6 @@ class MaicoKWLFan(FanEntity):
     """Maico KWL fan: percentage = Lüftungsstufe, preset = Betriebsart."""
 
     _attr_name = "Lüftung"
-    _attr_unique_id = "maico_kwl_lueftung"
     _attr_has_entity_name = True
     _attr_supported_features: Final = (
         FanEntityFeature.SET_SPEED
@@ -67,11 +67,14 @@ class MaicoKWLFan(FanEntity):
         """Initialize the fan."""
         self.coordinator = coordinator
         self._config_entry = config_entry
+        legacy = config_entry.data.get("legacy_ids", False)
+        model = config_entry.data.get("model", DEVICE_MODEL)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, "lueftung")
         self._attr_device_info = {
             "identifiers": {(DOMAIN, config_entry.entry_id)},
-            "name": DEVICE_MODEL,
+            "name": model,
             "manufacturer": "Maico",
-            "model": "WS 300 Flat",
+            "model": model,
         }
 
     # ---- State (reading) -------------------------------------------------

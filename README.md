@@ -1,8 +1,17 @@
-# Maico WS 300 Flat – Home Assistant Integration
+# Maico KWL – Home Assistant Integration
 
-Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung einer **Maico WS 300 Flat** Lüftungsanlage (KWL) über Modbus TCP.
+Eine benutzerdefinierte [Home Assistant](https://www.home-assistant.io/) Integration zur Steuerung und Überwachung von **Maico Lüftungsanlagen** (KWL) über Modbus TCP.
 
-Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig.
+Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YAML-Konfiguration nötig. Bei der Einrichtung wird das Modell ausgewählt; vorhandene optionale Sensoren werden automatisch erkannt.
+
+## Unterstützte Geräte
+
+**KWL-Zentral (Trio / WR / WS)** – gemeinsame Modbus-Plattform:
+Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB 300 Flat, WS 320, WS 470, WR 310, WR 410 sowie die WS 75 Powerbox.
+
+**PushPull** – PP 45 / PPB 30 (über LAN-Gateway, das Modbus TCP ↔ RTU wandelt).
+
+> **Verifiziert** wurde die Integration an einer **WS 300 Flat** (Firmware ≥ 1.3.0). Die übrigen Modelle teilen sich dieselbe Steuerungsplattform; einzelne Firmware-/Modellabweichungen (z. B. bei der Skalierung) können auftreten. Im Zweifel die Werte mit der Maico-App vergleichen und ggf. ein [Issue](https://github.com/theoldphilip/homeassistant-maico-kwl/issues) melden.
 
 ## Funktionen
 
@@ -11,6 +20,7 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
   - Voreinstellungen (Dropdown) = Betriebsart (Aus / Manuell / Auto Zeit / Auto Sensor / Eco-Zuluft / Eco-Abluft)
   - Beim Ändern der Stufe wird die Betriebsart automatisch auf „Manuell" gesetzt
 - **Sensoren** für Temperaturen, Drehzahlen, Volumenströme, Luftfeuchte, CO₂, Betriebszustände
+- **Automatische Feature-Erkennung** – optionale Sensoren (CO₂, externe Feuchte/VOC, Heizregister, Sole) werden nur angelegt, wenn das Gerät sie hat
 - **Wärmerückgewinnung** wird live aus den Temperaturen berechnet
 - **Stromverbrauch** wird aus dem Volumenstrom geschätzt (Watt + kWh fürs Energie-Dashboard)
 - **Betriebsstunden** je Lüftungsstufe sowie Fehler-/Hinweis-Diagnose
@@ -27,7 +37,7 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
 2. Oben rechts auf die drei Punkte → **Benutzerdefinierte Repositories**
 3. Repository hinzufügen: `https://github.com/theoldphilip/homeassistant-maico-kwl`
 4. Kategorie: **Integration** → **Hinzufügen**
-5. Anschließend „Maico WS 300 Flat" suchen und installieren
+5. Anschließend „Maico KWL" suchen und installieren
 6. Home Assistant neu starten
 
 ### Manuell
@@ -38,12 +48,15 @@ Einrichtung komplett über die Oberfläche (Config Flow) – es ist **keine** YA
 ## Einrichtung
 
 1. **Einstellungen → Geräte & Dienste → Integration hinzufügen**
-2. Nach „Maico WS 300 Flat" suchen
+2. Nach „Maico KWL" suchen
 3. Eingeben:
-   - **IP-Adresse** der Lüftungsanlage
+   - **Modell** – das angeschlossene Maico-Gerät aus der Liste
+   - **IP-Adresse** der Lüftungsanlage (bei PushPull: IP des LAN-Gateways)
    - **Filterwechsel-Warnung (Tage)** – Standard: 7
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
+
+> **Update von einer älteren Version (Einzelgerät):** Bestehende Installationen werden automatisch migriert und behalten **alle Entitäten, Entity-IDs, Dashboards und Automationen** unverändert. Es ist keine Neueinrichtung nötig.
 
 ## Entitäten
 
@@ -201,7 +214,7 @@ Temperaturen werden als `int16` mit Faktor 0,1 gelesen.
 ## Voraussetzungen
 
 - Home Assistant 2024.1.0 oder neuer
-- Maico WS 300 Flat mit aktiviertem Modbus TCP, erreichbar im Netzwerk
+- Ein unterstütztes Maico-Gerät (siehe oben) mit aktiviertem Modbus TCP, erreichbar im Netzwerk (bei PushPull über ein LAN-Gateway)
 
 ## Haftungsausschluss
 
