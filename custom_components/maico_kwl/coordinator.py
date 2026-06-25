@@ -322,7 +322,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         except Exception as err:
             raise UpdateFailed(f"Unexpected error: {err}")
 
-
+    async def _evaluate_summer_mode(self, data: Dict[str, Any]) -> None:
         """Apply night-cooling logic when summer mode is enabled.
 
         Rules (only when self.summer_mode is True):
