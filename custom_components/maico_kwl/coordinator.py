@@ -379,9 +379,11 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         # Kühlbedingung: außen kühl genug UND innen über dem oberen Schaltpunkt.
         elif outdoor <= indoor - self.cool_min_diff and indoor > cool_on_temp:
             action = "cool"
-        # Bereits am Kühlen: weiterkühlen, bis der untere Schaltpunkt erreicht
-        # ist (Totband) -- verhindert Pendeln an der Zieltemperatur.
-        elif was_cooling and outdoor <= indoor - self.cool_min_diff and indoor > cool_off_temp:
+        # Bereits am Kühlen: Weiterkühlen mit relaxiertem Differenz-Schwellwert.
+        # Die Außen/Innen-Differenz muss nur noch (min_diff - hyst) betragen,
+        # um das Pendeln am Differenz-Schwellwert zu verhindern.
+        # (Analoges Totband wie bei der Zieltemperatur, aber auf der Diff-Seite.)
+        elif was_cooling and outdoor <= indoor - max(0.0, self.cool_min_diff - hyst) and indoor > cool_off_temp:
             action = "cool"
         # War am Kühlen und hat den unteren Schaltpunkt erreicht -> stoppen.
         elif was_cooling and indoor <= cool_off_temp:
@@ -402,14 +404,19 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
 
         # --- Mindest-Laufzeit-Schutz ---
         # Nach einem Schaltvorgang mindestens `min_runtime` Minuten warten,
-        # bevor erneut geschaltet wird. Schützt zusätzlich vor Pendeln bei
-        # kurzzeitig zappelnden Temperaturen.
+        # bevor erneut geschaltet wird.
         if self._last_switch_ts is not None:
             elapsed_min = (datetime.now(timezone.utc) - self._last_switch_ts).total_seconds() / 60.0
             if elapsed_min < self.min_runtime:
-                # Halten: Status zeigt den gewünschten, aber noch gesperrten Wechsel.
                 rest = self.min_runtime - elapsed_min
-                self.summer_status += f" – Haltezeit {rest:.0f} min"
+                # Status zeigt den TATSÄCHLICHEN Gerätezustand (letzten geschriebenen
+                # Zustand), nicht den gewünschten – verhindert irreführende Anzeige.
+                actual_status = (
+                    "Kühlt (Nachtkühlung)"
+                    if self._summer_last_action == "cool"
+                    else "Bereit (Schutzlüftung, wartet auf Kühlbedingungen)"
+                )
+                self.summer_status = actual_status + f" – wartet {rest:.0f} min"
                 return
 
         try:
