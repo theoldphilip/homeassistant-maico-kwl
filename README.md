@@ -193,6 +193,77 @@ Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Ma
 
 > ⚠️ **Hinweis zur HA-Nachtkühlung:** Der HA-**Sommermodus** regelt zusätzlich aktiv die Lüftungsstufe hoch (Intensiv), während das Gerät nur den Bypass öffnet. Beide ergänzen sich. Damit sie in dieselbe Richtung arbeiten, sollte **T-Raum max.** nicht höher als die gewünschte Kühl-Zieltemperatur stehen.
 
+## Lovelace Custom Card
+
+Zum Lieferumfang gehört eine grafische Lovelace-Karte (`lovelace/maico-kwl-card.js`), die die Anlage als interaktives Schema darstellt – mit animierten Luftstrom-Pfeilen, Temperaturanzeige an allen vier Anschlüssen, Wärmetauscher-Wirkungsgrad, Bypass-Status und einer konfigurierbaren Raumübersicht.
+
+### Installation der Karte
+
+1. Die Datei `lovelace/maico-kwl-card.js` aus dem Repo in den Ordner `config/www/` deiner Home-Assistant-Installation kopieren.
+
+2. In HA die Ressource registrieren: **Einstellungen → Dashboards → ⋮ → Ressourcen → Hinzufügen**
+   ```
+   URL:  /local/maico-kwl-card.js
+   Typ:  JavaScript-Modul
+   ```
+
+3. HA-Browser-Cache leeren (**Strg+Shift+R**).
+
+### Karte einbinden
+
+Im Dashboard eine neue Karte hinzufügen → **Manuelle Karte** → folgenden YAML-Block einfügen:
+
+```yaml
+type: custom:maico-kwl-card
+name: Maico WS 300 Flat
+entities:
+  aussenluft:   sensor.maico_ws_300_flat_aussenluft
+  zuluft:       sensor.maico_ws_300_flat_zuluft
+  abluft:       sensor.maico_ws_300_flat_abluft
+  fortluft:     sensor.maico_ws_300_flat_fortluft
+  status:       sensor.htr_maico_ws_300_flat_sommermodus_status
+  stufe:        sensor.maico_ws_300_flat_luftungsstufe
+  volumenstrom: sensor.maico_ws_300_flat_volumenstrom_zuluft
+  wrg:          sensor.maico_ws_300_flat_warmeruckgewinnung  # optional
+  bypass:       sensor.maico_ws_300_flat_bypass_status       # optional
+rooms:
+  zuluft:
+    - { name: Schlafzimmer,  icon: "🛏" }
+    - { name: Wohnzimmer,    icon: "🛋" }
+    - { name: Arbeitszimmer, icon: "💼" }
+  abluft:
+    - { name: Bad,           icon: "🚿" }
+    - { name: Küche,         icon: "🍳" }
+    - { name: HTR,           icon: "🔧" }
+```
+
+Die Entity-IDs entsprechen der Standard-Benennung dieser Integration. Bei abweichenden Namen (z.B. durch mehrere Geräte) die IDs entsprechend anpassen. Räume sind vollständig konfigurierbar – Name, Icon und Anzahl lassen sich frei wählen.
+
+### Erklärungstext (optional)
+
+Als aufklappbare Erklärungskarte direkt über der Karte (Markdown-Karte):
+
+```yaml
+type: markdown
+content: >
+  <details>
+  <summary>❓ <b>Erklärung der Lüftungskarte</b> (zum Aufklappen tippen)</summary>
+
+  Die Karte zeigt den aktuellen Zustand der Lüftungsanlage auf einen Blick.
+
+  **Außen (links):** Frischluft tritt ein (Außenluft) und verbrauchte Luft verlässt das Gebäude (Fortluft).
+
+  **Innen (rechts):** Aufbereitete Zuluft geht in die Wohnräume, Abluft wird aus Bädern und Küche abgesaugt.
+
+  **Wärmetauscher (Mitte):** Überträgt die Wärme der Abluft auf die Außenluft.
+  Der WRG-Wert zeigt den Wirkungsgrad – bei geöffnetem Bypass (Nachtkühlung) ist er bewusst niedrig.
+
+  **Bypass:** Öffnet automatisch im Sommermodus, um kühle Nachtluft direkt einzuleiten.
+  </details>
+```
+
+> **Hinweis:** Ein grafischer Editor für die Karten-Konfiguration (ohne YAML) ist in Entwicklung.
+
 ## Optionale Sensoren
 
 Geräte der KWL-Zentral-Plattform können zusätzliche Sensoren besitzen (mehrere CO₂-, VOC- und externe Feuchtesensoren). Diese werden **automatisch erkannt**:
