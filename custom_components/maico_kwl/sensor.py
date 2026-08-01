@@ -108,6 +108,7 @@ async def async_setup_entry(
         ("rf_sensor_2", "Luftfeuchte Sensor 2 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
         ("rf_sensor_3", "Luftfeuchte Sensor 3 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
         ("rf_sensor_4", "Luftfeuchte Sensor 4 (extern)", SensorDeviceClass.HUMIDITY, PERCENTAGE),
+        ("temp_raum_ext", "Temperatur Raum Ext. (Sensor 701)", SensorDeviceClass.TEMPERATURE, UnitOfTemperature.CELSIUS),
     ]
     for key, name, devclass, unit in OPTIONAL_SENSORS:
         if key in coordinator.registers and coordinator.feature_present(key):

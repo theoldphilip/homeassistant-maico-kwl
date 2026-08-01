@@ -125,6 +125,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         "co2_abluft", "co2_sensor_2", "co2_sensor_3", "co2_sensor_4",
         "voc_sensor_1", "voc_sensor_2",
         "rf_sensor_1", "rf_sensor_2", "rf_sensor_3", "rf_sensor_4",
+        "temp_raum_ext",
     )
 
     def _optional_sensor_keys(self):

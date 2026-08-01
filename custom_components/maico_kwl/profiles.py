@@ -76,6 +76,7 @@ KWL_ZENTRAL_REGISTERS: dict[str, RegisterDef] = {
     "temp_abluft": RegisterDef(705, scale=0.1),
     "temp_fortluft": RegisterDef(706, scale=0.1),
     "temp_raum": RegisterDef(700, scale=0.1),
+    "temp_raum_ext": RegisterDef(701, scale=0.1, optional=True, writable=True),
     # sensors at the unit
     "humidity_abluft": RegisterDef(750, scale=1.0),
     "co2_abluft": RegisterDef(755, scale=1.0, optional=True),
