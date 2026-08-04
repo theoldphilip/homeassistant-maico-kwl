@@ -17,7 +17,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import DOMAIN, DEFAULT_MODBUS_PORT
+from .const import DOMAIN, DEFAULT_MODBUS_PORT, DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES
 from .profiles import all_models, model_to_profile_key, get_profile, DEFAULT_MODEL
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,6 +35,10 @@ def _user_schema(default_model: str = DEFAULT_MODEL) -> vol.Schema:
             )
         ),
         vol.Optional("filter_warning_days", default=7): cv.positive_int,
+        vol.Optional(
+            "bus_write_cycle_minutes",
+            default=DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES,
+        ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
     })
 
 
@@ -67,6 +71,9 @@ class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 2
 
+    async def async_get_options_flow(self, config_entry):
+        return MaicoKWLOptionsFlowHandler(config_entry)
+
     async def async_step_user(
         self, user_input: Optional[Dict[str, Any]] = None
     ) -> FlowResult:
@@ -92,7 +99,10 @@ class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "unit_id": 1,
                         "scan_interval": 30,
                         "filter_warning_days": user_input.get("filter_warning_days", 7),
-                        "model": model,
+                "bus_write_cycle_minutes": user_input.get(
+                    "bus_write_cycle_minutes",
+                    DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES,
+                ),
                         "profile": profile_key,
                     },
                 )
@@ -109,3 +119,32 @@ class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_import(self, import_data: Dict[str, Any]) -> FlowResult:
         """Handle import from configuration.yaml."""
         return await self.async_step_user(import_data)
+
+
+class MaicoKWLOptionsFlowHandler(config_entries.OptionsFlow):
+    """Handle options for Maico KWL."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self.config_entry = config_entry
+
+    async def async_step_init(self, user_input: Optional[Dict[str, Any]] = None) -> FlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        current_cycle = self.config_entry.options.get(
+            "bus_write_cycle_minutes",
+            self.config_entry.data.get(
+                "bus_write_cycle_minutes",
+                DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES,
+            ),
+        )
+
+        schema = vol.Schema({
+            vol.Optional(
+                "bus_write_cycle_minutes",
+                default=current_cycle,
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=60)),
+        })
+
+        return self.async_show_form(step_id="init", data_schema=schema)

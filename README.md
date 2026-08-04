@@ -23,6 +23,7 @@ Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB
   - Beim Ändern der Stufe wird die Betriebsart automatisch auf „Manuell" gesetzt
 - **Sensoren** für Temperaturen, Drehzahlen, Volumenströme, Luftfeuchte, CO₂, Betriebszustände
 - **Automatische Feature-Erkennung** – optionale Sensoren (CO₂, externe Feuchte/VOC, Heizregister, Sole) werden nur angelegt, wenn das Gerät sie hat
+- **Externe Raumtemperaturquelle** – Auswahl der Quelle und Eingabe einer Bus-Raumtemperatur für die Gerätelogik
 - **Wärmerückgewinnung** wird live aus den Temperaturen berechnet
 - **Stromverbrauch** wird aus dem Volumenstrom geschätzt (Watt + kWh fürs Energie-Dashboard)
 - **Betriebsstunden** je Lüftungsstufe sowie Fehler-/Hinweis-Diagnose
@@ -55,6 +56,7 @@ Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB
    - **Modell** – das angeschlossene Maico-Gerät aus der Liste
    - **IP-Adresse** der Lüftungsanlage (bei PushPull: IP des LAN-Gateways)
    - **Filterwechsel-Warnung (Tage)** – Standard: 7
+   - **Bus-Schreibzyklus (Minuten)** – Mindestabstand zwischen Schreibbefehlen für `number.maico_kwl_t_raum_bus`
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 
@@ -70,6 +72,8 @@ Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 | `switch.maico_kwl_sommermodus` | Switch | Automatische Nachtkühlung an/aus |
 | `number.maico_kwl_cool_min_diff` | Number | Kühlung: Mindest-Temperaturdifferenz (°C) |
 | `number.maico_kwl_cool_target` | Number | Kühlung: Zieltemperatur (°C) |
+| `select.maico_kwl_raumtempauswahl` | Select | Raumtemperaturquelle (Komfort-BDE / Extern / Intern / Bus) |
+| `number.maico_kwl_t_raum_bus` | Number | Externe Raumtemperatur für Bus-Modus (°C) – write-only Register 707, wird im Coordinator zwischengespeichert und nur bei Bedarf geschrieben |
 
 ### Sensoren
 
@@ -188,6 +192,23 @@ Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Ma
 | `number.maico_kwl_t_zuluft_min_kuehlen` | 301 | Minimale Zulufttemperatur beim Kühlen (8–29 °C) |
 | `number.maico_kwl_dauer_lueftungsstufe` | 153 | Dauer der Stoßlüftung (5–90 min) |
 | `button.maico_kwl_stosslueftung` | 551 | Stoßlüftung auslösen (Intensiv für die eingestellte Dauer) |
+| `number.maico_kwl_volumenstrom_reduziert` | 154 | Volumenstrom-Sollwert für die Stufe „Reduziert" (80–300 m³/h) |
+| `number.maico_kwl_volumenstrom_nennlueftung` | 155 | Volumenstrom-Sollwert für die Stufe „Nennlüftung" (80–300 m³/h) |
+| `number.maico_kwl_volumenstrom_intensiv` | 156 | Volumenstrom-Sollwert für die Stufe „Intensiv" (80–300 m³/h) |
+| `select.maico_kwl_raumtempauswahl` | 109 | Raumtemperatur-Quelle für die geräteinterne Bypass-Entscheidung (Komfort-BDE / Extern / Intern / Bus) |
+| `number.maico_kwl_t_raum_bus` | 707 | Externe Raumtemperatur, nur wirksam wenn `raumtempauswahl` = „Bus" (write-only, Schreibzyklus min. 10 min laut Spec) |
+
+> **Kontinuierliche Volumenstromregelung:** Das Gerät kennt keinen freien Volumenstrom-Sollwert,
+> sondern nur die drei Stufen-Register 154/155/156. Wer eine externe, kontinuierliche Regelung
+> (z. B. per Node-RED, abhängig von Temperatur/Feuchte/Duscherkennung) betreiben will, kann
+> z. B. die Stufe „Nennlüftung" dauerhaft aktiv halten (`fan.set_percentage` auf 75 %) und
+> `number.maico_kwl_volumenstrom_nennlueftung` bei jedem Regelzyklus auf den berechneten Zielwert
+> setzen — effektiv ein kontinuierlicher Regler auf einem stufenbasierten Gerät.
+>
+> **Externe Raumtemperatur (707):** Wird nur berücksichtigt, wenn `raumtempauswahl` auf „Bus"
+> steht. Damit lässt sich der interne Sensor (Komfort-BDE) durch einen extern berechneten Wert
+> (z. B. gewichteter Mittelwert mehrerer Raumsensoren) ersetzen, den das Gerät dann selbst gegen
+> `t_raum_max` (302) vergleicht.
 
 > **Firmware ≥ 1.3.0:** Ab dieser Firmware gibt es keine Sommer-/Winterumschaltung mehr – der Bypass wird vollautomatisch geregelt und öffnet, sobald die Raumtemperatur über **T-Raum max.** (Register 302) steigt und die Außenluft kühler ist. Dieser Wert ist damit der eigentliche Hebel für die geräteeigene Kühlung. Die früheren Register „Jahreszeit" (552) und „Solltemperatur Raum" (553, nur mit Nachheizregister wirksam) sind daher nicht eingebunden.
 

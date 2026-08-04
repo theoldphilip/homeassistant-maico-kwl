@@ -103,6 +103,7 @@ DEFAULT_COOL_MIN_DIFF = 2.0    # °C: Außen muss mind. so viel kühler sein als
 DEFAULT_COOL_TARGET = 22.0     # °C: bis zu dieser Innentemperatur wird gekühlt
 DEFAULT_COOL_HYSTERESIS = 0.5  # °C: Totband um die Zieltemperatur (gegen Pendeln)
 DEFAULT_MIN_RUNTIME = 10       # min: Mindest-Haltezeit nach einem Schaltvorgang
+DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES = 10  # min: Mindestabstand zwischen Schreibbefehlen für Register 707
 # Hysterese: tagsüber erst "aus", wenn außen mind. so viel wärmer ist als innen
 SUMMER_DAY_HYSTERESIS = 1.0    # °C
 # Stage written to register 554 when night-cooling (4 = Intensiv)

@@ -7,7 +7,11 @@ from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
+<<<<<<< HEAD
+from .const import DOMAIN, DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES
+=======
 from .const import DOMAIN
+>>>>>>> 82654e6 (Add external room temperature source entities)
 from .coordinator import MaicoKWLCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,6 +22,7 @@ PLATFORMS: Final = [
     Platform.SENSOR,
     Platform.SWITCH,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.BUTTON,
 ]
 
@@ -69,6 +74,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data.get("unit_id", 1),
         entry.data.get("scan_interval", 30),
         profile_key,
+<<<<<<< HEAD
+        entry.options.get(
+            "bus_write_cycle_minutes",
+            entry.data.get(
+                "bus_write_cycle_minutes",
+                DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES,
+            ),
+        ),
+=======
+>>>>>>> 82654e6 (Add external room temperature source entities)
     )
     
     # Establish the initial connection once. If it fails, HA will retry setup

@@ -38,7 +38,7 @@ async def async_setup_entry(
     if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
         return
 
-    async_add_entities([
+    entities = [
         MaicoKWLCoolMinDiffNumber(coordinator, config_entry),
         MaicoKWLCoolTargetNumber(coordinator, config_entry),
         MaicoKWLCoolHysteresisNumber(coordinator, config_entry),
@@ -51,7 +51,38 @@ async def async_setup_entry(
             coordinator, config_entry, "t_zuluft_min_kuehlen",
             "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0),
         MaicoKWLBoostDurationNumber(coordinator, config_entry),
-    ])
+<<<<<<< HEAD
+        # Volumenstrom-Sollwerte je Lüftungsstufe (154-156)
+        MaicoKWLDeviceFlowNumber(
+            coordinator, config_entry, "volumenstrom_reduziert",
+            "Volumenstrom Reduzierte Lüftung", "mdi:fan-speed-1"),
+        MaicoKWLDeviceFlowNumber(
+            coordinator, config_entry, "volumenstrom_nennlueftung",
+            "Volumenstrom Nennlüftung", "mdi:fan-speed-2"),
+        MaicoKWLDeviceFlowNumber(
+            coordinator, config_entry, "volumenstrom_intensiv",
+            "Volumenstrom Intensivlüftung", "mdi:fan-speed-3"),
+        MaicoKWLTRaumBusNumber(coordinator, config_entry),
+    ]
+
+=======
+    ]
+
+    if "t_raum_bus" in coordinator.registers and coordinator.feature_present("t_raum_bus"):
+        entities.append(
+            MaicoKWLDeviceTempNumber(
+                coordinator,
+                config_entry,
+                "t_raum_bus",
+                "T-Raum Bus",
+                "mdi:thermometer-check",
+                -30.0,
+                120.0,
+            )
+        )
+
+>>>>>>> 82654e6 (Add external room temperature source entities)
+    async_add_entities(entities)
 
 
 class _MaicoKWLBaseNumber(NumberEntity, RestoreEntity):
@@ -237,6 +268,86 @@ class MaicoKWLDeviceTempNumber(_MaicoKWLBaseNumber):
         )
 
 
+<<<<<<< HEAD
+class MaicoKWLDeviceFlowNumber(_MaicoKWLBaseNumber):
+    """A stage flow-rate setpoint (m³/h) written directly to the device.
+
+    Registers 154/155/156 define the fixed m³/h target for each ventilation
+    stage (Reduziert/Nenn/Intensiv). The fan entity only selects *which*
+    stage is active; these registers define what each stage actually means.
+    """
+
+    _attr_native_unit_of_measurement = "m³/h"
+    _attr_native_step = 1
+    _attr_native_min_value = 80
+    _attr_native_max_value = 300
+
+    def __init__(self, coordinator, config_entry, register_key, name, icon):
+        super().__init__(coordinator, config_entry)
+        self._register_key = register_key
+        legacy = config_entry.data.get("legacy_ids", False)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, register_key)
+        self._attr_name = name
+        self._attr_icon = icon
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._register_key)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_write_raw(self._register_key, int(value))
+
+    @property
+    def should_poll(self) -> bool:
+        return False
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class MaicoKWLTRaumBusNumber(_MaicoKWLBaseNumber):
+    """External room temperature fed to the device via Reg. 707 (T-Raum Bus).
+
+    Only takes effect when 'raumtempauswahl' (Reg. 109) is set to Bus.
+    Register 707 is write-only per the Maico spec, so the last requested value
+    is cached in the coordinator and restored from state when HA restarts.
+    """
+
+    _attr_name = "T-Raum Bus (extern)"
+    _id_key = "t_raum_bus"
+    _attr_icon = "mdi:thermometer-bluetooth"
+    _attr_native_min_value = -30.0
+    _attr_native_max_value = 120.0
+    _attr_native_step = 0.1
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None:
+            try:
+                self.coordinator.t_raum_bus = float(last.state)
+            except (ValueError, TypeError):
+                pass
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.t_raum_bus
+
+    async def async_set_native_value(self, value: float) -> None:
+        await self.coordinator.async_set_t_raum_bus(value)
+        self.async_write_ha_state()
+
+
+=======
+>>>>>>> 82654e6 (Add external room temperature source entities)
 class MaicoKWLBoostDurationNumber(_MaicoKWLBaseNumber):
     """Duration of the boost ventilation (register 153, minutes)."""
 

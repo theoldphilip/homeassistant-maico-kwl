@@ -17,10 +17,15 @@ from .const import (
     DEFAULT_COOL_TARGET,
     DEFAULT_COOL_HYSTERESIS,
     DEFAULT_MIN_RUNTIME,
+<<<<<<< HEAD
+    DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES,
+=======
+>>>>>>> 82654e6 (Add external room temperature source entities)
     SUMMER_DAY_HYSTERESIS,
     SUMMER_COOL_STUFE,
     SUMMER_IDLE_STUFE,
 )
+from .profiles import room_temp_source_to_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,11 +44,28 @@ except Exception:  # pragma: no cover
 class MaicoKWLCoordinator(DataUpdateCoordinator):
     """Coordinator for fetching Maico KWL data."""
 
+<<<<<<< HEAD
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        host: str,
+        port: int,
+        unit_id: int,
+        scan_interval: int,
+        profile_key: str | None = None,
+        bus_write_cycle_minutes: int = DEFAULT_T_RAUM_BUS_WRITE_CYCLE_MINUTES,
+    ):
+=======
     def __init__(self, hass: HomeAssistant, host: str, port: int, unit_id: int, scan_interval: int, profile_key: str = None):
+>>>>>>> 82654e6 (Add external room temperature source entities)
         """Initialize the coordinator."""
         self.host = host
         self.port = port
         self.unit_id = unit_id
+<<<<<<< HEAD
+        self.bus_write_cycle_minutes = bus_write_cycle_minutes
+=======
+>>>>>>> 82654e6 (Add external room temperature source entities)
         # Load the device profile (register map etc.). Falls back to the
         # default (kwl_zentral / WS 300 Flat) for legacy entries.
         from .profiles import get_profile
@@ -71,9 +93,24 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         # Timestamp until which a manually triggered Stoßlüftung is active.
         # While set and in the future, the summer logic stands down.
         self._boost_until: datetime | None = None
+<<<<<<< HEAD
         # Human-readable status for the status sensor / notifications.
         self.summer_status: str = "Inaktiv"
 
+        # --- T-Raum Bus (707) state ---
+        # Register 707 is write-only on many devices, so the entity cannot
+        # rely on polling to read it back. Cache the last requested value
+        # here and restore it after restart.
+        self.t_raum_bus: float | None = None
+        self._t_raum_bus_last_write: datetime | None = None
+
+=======
+        # Debounce writes to the external room temperature bus register.
+        self._last_write_ts: dict[str, datetime] = {}
+        # Human-readable status for the status sensor / notifications.
+        self.summer_status: str = "Inaktiv"
+
+>>>>>>> 82654e6 (Add external room temperature source entities)
         super().__init__(
             hass,
             _LOGGER,
@@ -238,6 +275,27 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
             if not res.isError():
                 data["t_zuluft_min_kuehlen"] = self._int16_to_float(res.registers[0], self._scale("t_zuluft_min_kuehlen"))
 
+<<<<<<< HEAD
+            # Volumenstrom-Sollwerte je Stufe (154-156)
+            res = await self._read_registers(self._addr("volumenstrom_reduziert"), 3)
+            if not res.isError():
+                data["volumenstrom_reduziert"] = res.registers[0]
+                data["volumenstrom_nennlueftung"] = res.registers[1]
+                data["volumenstrom_intensiv"] = res.registers[2]
+
+=======
+>>>>>>> 82654e6 (Add external room temperature source entities)
+            res = await self._read_registers(self._addr("raumtempauswahl"), 1)
+            if not res.isError():
+                data["raumtempauswahl"] = res.registers[0]
+
+<<<<<<< HEAD
+=======
+            res = await self._read_registers(self._addr("t_raum_bus"), 1)
+            if not res.isError():
+                data["t_raum_bus"] = self._int16_to_float(res.registers[0], self._scale("t_raum_bus"))
+
+>>>>>>> 82654e6 (Add external room temperature source entities)
             # Stoßlüftung (551), Dauer (153)
             for key in ("stosslueftung", "dauer_lueftungsstufe"):
                 res = await self._read_registers(self._addr(key), 1)
@@ -505,6 +563,20 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         Used by the extended control entities (Stoßlüftung, T-Raum max., ...).
         The caller is responsible for passing an already-scaled raw value.
         """
+<<<<<<< HEAD
+=======
+        if register_key == "t_raum_bus":
+            now = datetime.now(timezone.utc)
+            last_ts = self._last_write_ts.get(register_key)
+            if last_ts is not None and (now - last_ts).total_seconds() < 600:
+                _LOGGER.debug(
+                    "Skipping write to %s: last write was less than 10 minutes ago",
+                    register_key,
+                )
+                return
+            self._last_write_ts[register_key] = now
+
+>>>>>>> 82654e6 (Add external room temperature source entities)
         try:
             result = await self._write_register(self._addr(register_key), value)
             if result.isError():
@@ -513,6 +585,13 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error writing %s: %s", register_key, err)
             raise
+
+    async def async_set_room_temp_source(self, option: str):
+        """Write the room temperature source selection (0..3)."""
+        value = room_temp_source_to_value(option)
+        if value is None:
+            raise ValueError(f"Unsupported room temperature source: {option}")
+        await self.async_write_raw("raumtempauswahl", int(value))
 
     async def async_trigger_stosslueftung(self):
         """Trigger boost ventilation (551 = 1).
@@ -540,6 +619,34 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         raw = int(round(celsius / scale)) if scale else int(round(celsius))
         await self.async_write_raw(register_key, raw)
 
+<<<<<<< HEAD
+    async def async_set_t_raum_bus(self, celsius: float, force: bool = False) -> bool:
+        """Write T-Raum Bus (register 707), debounced to the spec's min. 10 min cycle.
+
+        Only takes effect on the device when 'Raumtemperatur-Quelle' (Reg. 109)
+        is set to 'Bus'. The requested value is always cached on the
+        coordinator; the physical write is skipped if it arrives inside the
+        10-minute window, but the last value remains available to the entity.
+        """
+        self.t_raum_bus = celsius
+        now = datetime.now(timezone.utc)
+        if not force and self._t_raum_bus_last_write is not None:
+            min_interval = timedelta(minutes=self.bus_write_cycle_minutes)
+            if now - self._t_raum_bus_last_write < min_interval:
+                _LOGGER.debug(
+                    "t_raum_bus: Schreiben übersprungen (min. %s min Schreibzyklus)",
+                    self.bus_write_cycle_minutes,
+                )
+                return False
+        raw = int(round(celsius * 10))
+        result = await self._write_register(self._addr("t_raum_bus"), raw)
+        if result.isError():
+            raise UpdateFailed(f"Error writing t_raum_bus: {result}")
+        self._t_raum_bus_last_write = now
+        return True
+
+=======
+>>>>>>> 82654e6 (Add external room temperature source entities)
     async def async_shutdown(self):
         """Shutdown coordinator."""
         # client.close() is synchronous in pymodbus 3.x (no await!)
