@@ -22,6 +22,33 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+ROOM_TEMP_SOURCE_OPTIONS = ["Komfort-BDE", "Extern", "Intern", "Bus"]
+
+
+def room_temp_source_from_value(value: int | None) -> str | None:
+    """Translate the register value (0..3) to the user-facing option."""
+    if value is None:
+        return None
+    return {
+        0: "Komfort-BDE",
+        1: "Extern",
+        2: "Intern",
+        3: "Bus",
+    }.get(int(value))
+
+
+def room_temp_source_to_value(option: str | None) -> int | None:
+    """Translate the user-facing option to the raw Modbus value."""
+    if option is None:
+        return None
+    return {
+        "Komfort-BDE": 0,
+        "Extern": 1,
+        "Intern": 2,
+        "Bus": 3,
+    }.get(option)
+
+
 # ---------------------------------------------------------------------------
 # Register definition
 # ---------------------------------------------------------------------------
@@ -89,6 +116,8 @@ KWL_ZENTRAL_REGISTERS: dict[str, RegisterDef] = {
     "dauer_lueftungsstufe": RegisterDef(153, writable=True),
     "t_raum_max": RegisterDef(302, scale=0.1, writable=True, optional=True),
     "t_zuluft_min_kuehlen": RegisterDef(301, scale=1.0, writable=True),
+    "raumtempauswahl": RegisterDef(109, writable=True, optional=True),
+    "t_raum_bus": RegisterDef(707, scale=0.1, writable=True, optional=True),
     # diagnostics (bitfields)
     "fehler_1": RegisterDef(401),
     "fehler_2": RegisterDef(402),

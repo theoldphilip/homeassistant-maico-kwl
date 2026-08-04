@@ -21,6 +21,7 @@ from .const import (
     SUMMER_COOL_STUFE,
     SUMMER_IDLE_STUFE,
 )
+from .profiles import room_temp_source_to_value
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,6 +72,8 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         # Timestamp until which a manually triggered Stoßlüftung is active.
         # While set and in the future, the summer logic stands down.
         self._boost_until: datetime | None = None
+        # Debounce writes to the external room temperature bus register.
+        self._last_write_ts: dict[str, datetime] = {}
         # Human-readable status for the status sensor / notifications.
         self.summer_status: str = "Inaktiv"
 
@@ -237,6 +240,14 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
             res = await self._read_registers(self._addr("t_zuluft_min_kuehlen"), 1)
             if not res.isError():
                 data["t_zuluft_min_kuehlen"] = self._int16_to_float(res.registers[0], self._scale("t_zuluft_min_kuehlen"))
+
+            res = await self._read_registers(self._addr("raumtempauswahl"), 1)
+            if not res.isError():
+                data["raumtempauswahl"] = res.registers[0]
+
+            res = await self._read_registers(self._addr("t_raum_bus"), 1)
+            if not res.isError():
+                data["t_raum_bus"] = self._int16_to_float(res.registers[0], self._scale("t_raum_bus"))
 
             # Stoßlüftung (551), Dauer (153)
             for key in ("stosslueftung", "dauer_lueftungsstufe"):
@@ -505,6 +516,17 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         Used by the extended control entities (Stoßlüftung, T-Raum max., ...).
         The caller is responsible for passing an already-scaled raw value.
         """
+        if register_key == "t_raum_bus":
+            now = datetime.now(timezone.utc)
+            last_ts = self._last_write_ts.get(register_key)
+            if last_ts is not None and (now - last_ts).total_seconds() < 600:
+                _LOGGER.debug(
+                    "Skipping write to %s: last write was less than 10 minutes ago",
+                    register_key,
+                )
+                return
+            self._last_write_ts[register_key] = now
+
         try:
             result = await self._write_register(self._addr(register_key), value)
             if result.isError():
@@ -513,6 +535,13 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         except Exception as err:
             _LOGGER.error("Error writing %s: %s", register_key, err)
             raise
+
+    async def async_set_room_temp_source(self, option: str):
+        """Write the room temperature source selection (0..3)."""
+        value = room_temp_source_to_value(option)
+        if value is None:
+            raise ValueError(f"Unsupported room temperature source: {option}")
+        await self.async_write_raw("raumtempauswahl", int(value))
 
     async def async_trigger_stosslueftung(self):
         """Trigger boost ventilation (551 = 1).

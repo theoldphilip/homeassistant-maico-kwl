@@ -38,7 +38,7 @@ async def async_setup_entry(
     if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
         return
 
-    async_add_entities([
+    entities = [
         MaicoKWLCoolMinDiffNumber(coordinator, config_entry),
         MaicoKWLCoolTargetNumber(coordinator, config_entry),
         MaicoKWLCoolHysteresisNumber(coordinator, config_entry),
@@ -51,7 +51,22 @@ async def async_setup_entry(
             coordinator, config_entry, "t_zuluft_min_kuehlen",
             "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0),
         MaicoKWLBoostDurationNumber(coordinator, config_entry),
-    ])
+    ]
+
+    if "t_raum_bus" in coordinator.registers and coordinator.feature_present("t_raum_bus"):
+        entities.append(
+            MaicoKWLDeviceTempNumber(
+                coordinator,
+                config_entry,
+                "t_raum_bus",
+                "T-Raum Bus",
+                "mdi:thermometer-check",
+                -30.0,
+                120.0,
+            )
+        )
+
+    async_add_entities(entities)
 
 
 class _MaicoKWLBaseNumber(NumberEntity, RestoreEntity):
