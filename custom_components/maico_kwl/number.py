@@ -1,9 +1,9 @@
-"""Number entities for Maico KWL — Sommermodus thresholds."""
+"""Number entities for Maico KWL — Sommermodus thresholds and device setpoints."""
 import logging
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature
+from homeassistant.const import UnitOfTemperature, PERCENTAGE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -51,6 +51,18 @@ async def async_setup_entry(
             coordinator, config_entry, "t_zuluft_min_kuehlen",
             "T-Zuluft min. (Kühlen)", "mdi:thermometer-low", 8.0, 29.0),
         MaicoKWLBoostDurationNumber(coordinator, config_entry),
+        # Volumenstrom-Sollwerte je Stufe
+        MaicoKWLVolumenstromNumber(
+            coordinator, config_entry, "volumenstrom_reduziert",
+            "Volumenstrom Reduzierte Lüftung", "mdi:fan-speed-1"),
+        MaicoKWLVolumenstromNumber(
+            coordinator, config_entry, "volumenstrom_nennlueftung",
+            "Volumenstrom Nennlüftung", "mdi:fan-speed-2"),
+        MaicoKWLVolumenstromNumber(
+            coordinator, config_entry, "volumenstrom_intensiv",
+            "Volumenstrom Intensivlüftung", "mdi:fan-speed-3"),
+        # Filterüberwachung
+        MaicoKWLFilterDeltaPNumber(coordinator, config_entry),
     ])
 
 
@@ -264,6 +276,91 @@ class MaicoKWLBoostDurationNumber(_MaicoKWLBaseNumber):
     @property
     def should_poll(self) -> bool:
         return False
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class MaicoKWLVolumenstromNumber(_MaicoKWLBaseNumber):
+    """Volumenstrom-Sollwert für eine Lüftungsstufe (R154/155/156).
+
+    Legt den tatsächlichen Volumenstrom (m³/h) fest, der das Gerät für die
+    jeweilige Stufe ansteuert. Ermöglicht kontinuierliche Volumenstromregelung
+    per Automation ohne rohe Modbus-Service-Calls.
+
+    Hinweis: Die Grenzwerte 80–300 m³/h gelten für die WS 300 Flat; andere
+    Modelle können abweichende geräteinterne Grenzwerte haben.
+    """
+
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_unit_of_measurement = "m³/h"
+    _attr_native_min_value = 80
+    _attr_native_max_value = 300
+    _attr_native_step = 5
+
+    def __init__(self, coordinator, config_entry, register_key, name, icon):
+        super().__init__(coordinator, config_entry)
+        self._register_key = register_key
+        legacy = config_entry.data.get("legacy_ids", False)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, register_key)
+        self._attr_name = name
+        self._attr_icon = icon
+        # Einheit explizit überschreiben (Basisklasse setzt °C)
+        self._attr_native_unit_of_measurement = "m³/h"
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get(self._register_key)
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Schreibt den Volumenstrom-Sollwert direkt ins Gerät (uint16, kein scale)."""
+        await self.coordinator.async_write_raw(self._register_key, int(value))
+        await self.coordinator.async_request_refresh()
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+
+
+class MaicoKWLFilterDeltaPNumber(_MaicoKWLBaseNumber):
+    """Zulässiges Δp für die Filterüberwachung (R900).
+
+    Legt den prozentualen Druckabfall-Schwellwert fest, ab dem das Gerät einen
+    Filterwechsel-Hinweis ausgibt. Niedrigerer Wert = empfindlichere Überwachung.
+    """
+
+    _id_key = "filter_delta_p"
+    _attr_name = "Filterüberwachung Δp"
+    _attr_icon = "mdi:air-filter"
+    _attr_mode = NumberMode.BOX
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_native_min_value = 10
+    _attr_native_max_value = 200
+    _attr_native_step = 5
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data is None:
+            return None
+        return self.coordinator.data.get("filter_delta_p")
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_set_native_value(self, value: float) -> None:
+        """Schreibt den Δp-Schwellwert direkt ins Gerät (uint16, kein scale)."""
+        await self.coordinator.async_write_raw("filter_delta_p", int(value))
+        await self.coordinator.async_request_refresh()
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(

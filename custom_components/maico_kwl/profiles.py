@@ -89,11 +89,19 @@ KWL_ZENTRAL_REGISTERS: dict[str, RegisterDef] = {
     "dauer_lueftungsstufe": RegisterDef(153, writable=True),
     "t_raum_max": RegisterDef(302, scale=0.1, writable=True, optional=True),
     "t_zuluft_min_kuehlen": RegisterDef(301, scale=1.0, writable=True),
+    # Volumenstrom-Sollwerte je Stufe (uint16, direkt m³/h, kein scale)
+    "volumenstrom_reduziert": RegisterDef(154, writable=True),
+    "volumenstrom_nennlueftung": RegisterDef(155, writable=True),
+    "volumenstrom_intensiv": RegisterDef(156, writable=True),
     # diagnostics (bitfields)
     "fehler_1": RegisterDef(401),
     "fehler_2": RegisterDef(402),
     "hinweis_1": RegisterDef(403),
     "hinweis_2": RegisterDef(404),
+    # write-only: Fehler quittieren (schreibt 1 → Reset)
+    "fehler_reset": RegisterDef(405, writable=True),
+    # Filterüberwachung
+    "filter_delta_p": RegisterDef(900, writable=True),
     # operating hours (32-bit High/Low)
     "bh_feuchteschutz": RegisterDef(850, width=2),
     "bh_reduziert": RegisterDef(852, width=2),

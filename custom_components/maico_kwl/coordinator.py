@@ -244,11 +244,23 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 if not res.isError():
                     data[key] = res.registers[0]
 
+            # Volumenstrom-Sollwerte je Stufe (154-156, uint16, direkt m³/h)
+            for key in ("volumenstrom_reduziert", "volumenstrom_nennlueftung",
+                        "volumenstrom_intensiv"):
+                res = await self._read_registers(self._addr(key), 1)
+                if not res.isError():
+                    data[key] = res.registers[0]
+
             # Fehler/Hinweise (401-404, Bitfelder)
             for key in ("fehler_1", "fehler_2", "hinweis_1", "hinweis_2"):
                 res = await self._read_registers(self._addr(key), 1)
                 if not res.isError():
                     data[key] = res.registers[0]
+
+            # Filterüberwachung Δp (900, uint16, direkt %)
+            res = await self._read_registers(self._addr("filter_delta_p"), 1)
+            if not res.isError():
+                data["filter_delta_p"] = res.registers[0]
 
             # Betriebsstunden: je 2 Register = 32 Bit (High-Word/Low-Word)
             for key in ("bh_feuchteschutz", "bh_reduziert", "bh_nenn",

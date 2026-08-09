@@ -188,6 +188,27 @@ Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Ma
 | `number.maico_kwl_t_zuluft_min_kuehlen` | 301 | Minimale Zulufttemperatur beim Kühlen (8–29 °C) |
 | `number.maico_kwl_dauer_lueftungsstufe` | 153 | Dauer der Stoßlüftung (5–90 min) |
 | `button.maico_kwl_stosslueftung` | 551 | Stoßlüftung auslösen (Intensiv für die eingestellte Dauer) |
+| `button.maico_kwl_fehler_reset` | 405 | Aktive Gerätfehler quittieren (schreibt 1 → Reset) |
+
+### Volumenstrom-Sollwerte je Stufe
+
+| Entität | Register | Beschreibung |
+|---|---|---|
+| `number.maico_kwl_volumenstrom_reduziert` | 154 | Volumenstrom Reduzierte Lüftung (80–300 m³/h, Schritt 5) |
+| `number.maico_kwl_volumenstrom_nennlueftung` | 155 | Volumenstrom Nennlüftung (80–300 m³/h, Schritt 5) |
+| `number.maico_kwl_volumenstrom_intensiv` | 156 | Volumenstrom Intensivlüftung (80–300 m³/h, Schritt 5) |
+
+Diese drei Entities ermöglichen es, den **tatsächlichen Volumenstrom** (m³/h) direkt im Gerät zu setzen – unabhängig von der Lüftungsstufenwahl. Damit lässt sich z.B. in einer Automation die aktive Stufe festhalten und der zugehörige Sollwert kontinuierlich nachführen (Temperatur, Luftfeuchte, CO₂ o.ä.), ohne rohe `modbus.write_register`-Service-Calls.
+
+> **Hinweis:** Die Grenzwerte 80–300 m³/h gelten laut Maico-Dokumentation als Richtwert. Geräteinterne Maximalwerte können je nach Modell abweichen (z.B. WS 160 Flat < 300 m³/h). Wird ein zu hoher Wert geschrieben, begrenzt das Gerät ihn intern.
+
+### Filterüberwachung
+
+| Entität | Register | Beschreibung |
+|---|---|---|
+| `number.maico_kwl_filter_delta_p` | 900 | Zulässiges Δp für die Filterüberwachung (10–200 %) |
+
+Niedrigerer Wert = empfindlichere Überwachung (Hinweis früher). Standard: 100 % (Geräte-Default).
 
 > **Firmware ≥ 1.3.0:** Ab dieser Firmware gibt es keine Sommer-/Winterumschaltung mehr – der Bypass wird vollautomatisch geregelt und öffnet, sobald die Raumtemperatur über **T-Raum max.** (Register 302) steigt und die Außenluft kühler ist. Dieser Wert ist damit der eigentliche Hebel für die geräteeigene Kühlung. Die früheren Register „Jahreszeit" (552) und „Solltemperatur Raum" (553, nur mit Nachheizregister wirksam) sind daher nicht eingebunden.
 

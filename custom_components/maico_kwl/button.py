@@ -29,7 +29,10 @@ async def async_setup_entry(
     if coordinator.profile.get("key") == PLATFORM_PUSHPULL:
         return
 
-    async_add_entities([MaicoKWLBoostButton(coordinator, config_entry)])
+    async_add_entities([
+        MaicoKWLBoostButton(coordinator, config_entry),
+        MaicoKWLFehlerResetButton(coordinator, config_entry),
+    ])
 
 
 class MaicoKWLBoostButton(ButtonEntity):
@@ -63,3 +66,42 @@ class MaicoKWLBoostButton(ButtonEntity):
     async def async_press(self) -> None:
         """Trigger the boost."""
         await self.coordinator.async_trigger_stosslueftung()
+
+
+class MaicoKWLFehlerResetButton(ButtonEntity):
+    """Fehler quittieren (Fehler Reset, Register 405).
+
+    Schreibt 1 in R405 → das Gerät quittiert alle aktiven Fehler.
+    Entspricht dem manuellen Reset-Button in der Maico-App.
+
+    Hinweis: Das Register ist write-only (kein Lesen). Die Entität ist
+    in der Kategorie „Diagnose" eingeordnet, damit sie nicht das
+    normale Dashboard überfrachtet.
+    """
+
+    _attr_name = "Fehler quittieren"
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:alert-circle-check"
+    _attr_entity_category = "diagnostic"
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        self.coordinator = coordinator
+        self._config_entry = config_entry
+        legacy = config_entry.data.get("legacy_ids", False)
+        model = config_entry.data.get("model", DEVICE_MODEL)
+        self._attr_unique_id = build_unique_id(legacy, config_entry.entry_id, "fehler_reset")
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, config_entry.entry_id)},
+            "name": model,
+            "manufacturer": "Maico",
+            "model": model,
+        }
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_press(self) -> None:
+        """Fehler quittieren: schreibt 1 → R405."""
+        await self.coordinator.async_write_raw("fehler_reset", 1)
+        _LOGGER.info("Maico KWL: Fehler quittiert (R405 = 1)")
