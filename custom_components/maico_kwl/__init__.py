@@ -19,6 +19,7 @@ PLATFORMS: Final = [
     Platform.SWITCH,
     Platform.NUMBER,
     Platform.BUTTON,
+    Platform.SELECT,
 ]
 
 

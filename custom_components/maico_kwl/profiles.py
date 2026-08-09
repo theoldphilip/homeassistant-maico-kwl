@@ -89,6 +89,11 @@ KWL_ZENTRAL_REGISTERS: dict[str, RegisterDef] = {
     "dauer_lueftungsstufe": RegisterDef(153, writable=True),
     "t_raum_max": RegisterDef(302, scale=0.1, writable=True, optional=True),
     "t_zuluft_min_kuehlen": RegisterDef(301, scale=1.0, writable=True),
+    # Raumtemperaturquelle (uint16, 0=Komfort-BDE/1=Extern/2=Intern/3=Bus)
+    "raumtempauswahl": RegisterDef(109, writable=True),
+    # T-Raum Bus (int16, ×10, write-only! Schreibzyklus min. 10 min)
+    # Nur wirksam wenn raumtempauswahl = 3 (Bus). Kein Lesen möglich.
+    "t_raum_bus": RegisterDef(707, scale=0.1, writable=True),
     # Volumenstrom-Sollwerte je Stufe (uint16, direkt m³/h, kein scale)
     "volumenstrom_reduziert": RegisterDef(154, writable=True),
     "volumenstrom_nennlueftung": RegisterDef(155, writable=True),

@@ -63,6 +63,8 @@ async def async_setup_entry(
             "Volumenstrom Intensivlüftung", "mdi:fan-speed-3"),
         # Filterüberwachung
         MaicoKWLFilterDeltaPNumber(coordinator, config_entry),
+        # T-Raum Bus (write-only, Debounce 10 min)
+        MaicoKWLTRaumBusNumber(coordinator, config_entry),
     ])
 
 
@@ -366,3 +368,62 @@ class MaicoKWLFilterDeltaPNumber(_MaicoKWLBaseNumber):
         self.async_on_remove(
             self.coordinator.async_add_listener(self.async_write_ha_state)
         )
+
+
+class MaicoKWLTRaumBusNumber(_MaicoKWLBaseNumber):
+    """T-Raum Bus (R707) – externe Raumtemperatur als Bypass-Referenz.
+
+    Schreibt einen Temperaturwert (°C), den das Gerät intern für die
+    Bypass-Entscheidung verwendet – aber nur wenn Raumtempauswahl (R109)
+    auf „Bus" (3) steht.
+
+    R707 ist write-only: der aktuelle Gerätewert kann nicht ausgelesen werden.
+    Die Entity merkt sich daher den zuletzt gesetzten Wert lokal und stellt
+    ihn nach einem HA-Neustart via RestoreState wieder her.
+
+    Wichtig: Die Maico-Spec schreibt einen Mindest-Schreibzyklus von
+    10 Minuten vor. Wird dieser unterschritten, gibt die Integration eine
+    HomeAssistantError mit verbleibender Wartezeit zurück.
+    """
+
+    _id_key = "t_raum_bus"
+    _attr_name = "T-Raum Bus"
+    _attr_icon = "mdi:thermometer-check"
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = -30.0
+    _attr_native_max_value = 120.0
+    _attr_native_step = 0.5
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        super().__init__(coordinator, config_entry)
+        # Letzten geschriebenen Wert lokal halten (kein Lesen vom Gerät möglich)
+        self._cached_value: float | None = None
+        # Einheit explizit überschreiben (Basisklasse setzt °C – hier auch °C, passt)
+
+    @property
+    def native_value(self) -> float | None:
+        """Zuletzt geschriebener Wert (kein Live-Lesen von R707 möglich)."""
+        return self._cached_value
+
+    @property
+    def available(self) -> bool:
+        return self.coordinator.last_update_success
+
+    async def async_set_native_value(self, value: float) -> None:
+        """T-Raum Bus setzen – schreibt R707 mit eingebautem Debounce."""
+        # Debounce wird im Coordinator geprüft – HomeAssistantError bei Verstoß.
+        await self.coordinator.async_write_t_raum_bus(value)
+        self._cached_value = value
+        self.async_write_ha_state()
+
+    async def async_added_to_hass(self) -> None:
+        """Letzten Wert aus dem State Store wiederherstellen."""
+        self.async_on_remove(
+            self.coordinator.async_add_listener(self.async_write_ha_state)
+        )
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in ("unknown", "unavailable"):
+            try:
+                self._cached_value = float(last.state)
+            except (ValueError, TypeError):
+                pass

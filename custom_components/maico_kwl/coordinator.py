@@ -7,6 +7,7 @@ from pymodbus.client import AsyncModbusTcpClient
 from pymodbus.exceptions import ModbusException
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
@@ -68,6 +69,9 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         self._summer_last_action: str | None = None
         # Timestamp of the last actual switch, for the minimum-runtime guard.
         self._last_switch_ts: datetime | None = None
+        # Timestamp des letzten R707-Schreibvorgangs (T-Raum Bus).
+        # Spec: Schreibzyklus mindestens 10 Minuten.
+        self._last_r707_write_ts: datetime | None = None
         # Timestamp until which a manually triggered Stoßlüftung is active.
         # While set and in the future, the summer logic stands down.
         self._boost_until: datetime | None = None
@@ -250,6 +254,12 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 res = await self._read_registers(self._addr(key), 1)
                 if not res.isError():
                     data[key] = res.registers[0]
+
+            # Raumtemperaturauswahl (109, uint16, 0-3)
+            # R707 (T-Raum Bus) ist write-only → wird hier NICHT gelesen.
+            res = await self._read_registers(self._addr("raumtempauswahl"), 1)
+            if not res.isError():
+                data["raumtempauswahl"] = res.registers[0]
 
             # Fehler/Hinweise (401-404, Bitfelder)
             for key in ("fehler_1", "fehler_2", "hinweis_1", "hinweis_2"):
@@ -551,6 +561,33 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         scale = self._scale(register_key)
         raw = int(round(celsius / scale)) if scale else int(round(celsius))
         await self.async_write_raw(register_key, raw)
+
+    async def async_write_t_raum_bus(self, celsius: float) -> None:
+        """T-Raum Bus (R707) schreiben – mit eingebautem 10-Minuten-Debounce.
+
+        Das Gerät ignoriert Schreibzugriffe, die häufiger als alle 10 Minuten
+        erfolgen (explizit in der Maico-Modbus-Spec dokumentiert). Diese Methode
+        erzwingt die Einhaltung und gibt eine klare HomeAssistantError zurück,
+        wenn der Schreibzyklus noch nicht abgelaufen ist.
+
+        Voraussetzung: Raumtempauswahl (R109) muss auf „Bus" (3) stehen,
+        sonst ignoriert das Gerät den Wert stillschweigend.
+        """
+        now = datetime.now(timezone.utc)
+        if self._last_r707_write_ts is not None:
+            elapsed_min = (now - self._last_r707_write_ts).total_seconds() / 60.0
+            if elapsed_min < 10.0:
+                remaining = 10.0 - elapsed_min
+                raise HomeAssistantError(
+                    f"T-Raum Bus: Mindest-Schreibzyklus 10 Minuten (Geräte-Spec). "
+                    f"Nächster Schreibvorgang in {remaining:.0f} min möglich."
+                )
+        raw = int(round(celsius / self._scale("t_raum_bus")))
+        await self.async_write_raw("t_raum_bus", raw)
+        self._last_r707_write_ts = now
+        _LOGGER.debug(
+            "T-Raum Bus: %.1f °C geschrieben (R707 = %d)", celsius, raw
+        )
 
     async def async_shutdown(self):
         """Shutdown coordinator."""

@@ -202,7 +202,25 @@ Diese drei Entities ermöglichen es, den **tatsächlichen Volumenstrom** (m³/h)
 
 > **Hinweis:** Die Grenzwerte 80–300 m³/h gelten laut Maico-Dokumentation als Richtwert. Geräteinterne Maximalwerte können je nach Modell abweichen (z.B. WS 160 Flat < 300 m³/h). Wird ein zu hoher Wert geschrieben, begrenzt das Gerät ihn intern.
 
-### Filterüberwachung
+### Raumtemperaturquelle und externe Vorgabe
+
+| Entität | Register | Beschreibung |
+|---|---|---|
+| `select.maico_kwl_raumtempauswahl` | 109 | Quelle der Raumtemperatur für die interne Bypass-Steuerung |
+| `number.maico_kwl_t_raum_bus` | 707 | Externe Raumtemperaturvorgabe per Modbus Bus (-30–120 °C) |
+
+Die **Raumtempauswahl** (R109) bestimmt, welchen Temperaturwert das Gerät intern gegen **T-Raum max.** (R302) vergleicht, um die Bypass-Kühlung zu steuern:
+
+| Option | Beschreibung |
+|---|---|
+| Komfort-BDE | Interner Sensor der Bedieneinheit (Werkseinstellung) |
+| Extern (Sensor R701) | Externer Temperatursensor (Register 701) |
+| Intern | Interner Gerätesensor |
+| Bus (R707) | Wert wird per Modbus in Register 707 vorgegeben |
+
+**T-Raum Bus** (R707) ist nur wirksam, wenn Raumtempauswahl auf „Bus" steht. Typischer Use Case: gewichteter Mittelwert oder Maximum mehrerer Raumsensoren als Bypass-Referenz – z.B. via Automation oder Node-RED berechnet und minütlich aktualisiert.
+
+> ⚠️ **Mindest-Schreibzyklus 10 Minuten:** Die Maico-Spec schreibt für R707 einen Schreibzyklus von mindestens 10 Minuten vor. Die Integration erzwingt dies: bei zu häufigem Schreiben erscheint eine Fehlermeldung in der HA-Oberfläche mit der verbleibenden Wartezeit.
 
 | Entität | Register | Beschreibung |
 |---|---|---|
