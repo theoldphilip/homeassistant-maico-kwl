@@ -27,9 +27,11 @@ Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB
 - **Stromverbrauch** wird aus dem Volumenstrom geschätzt (Watt + kWh fürs Energie-Dashboard)
 - **Betriebsstunden** je Lüftungsstufe sowie Fehler-/Hinweis-Diagnose
 - **Stoßlüftung** per Knopfdruck (zeitbegrenzte Intensivlüftung)
-- **Filterwechsel-Warnung** mit einstellbarer Schwelle (Tage)
+- **Filterwechsel-Warnung** mit einstellbarer Schwelle (Tage) und Buttons zum Quittieren nach dem Filtertausch
 - **Sommermodus** mit automatischer Nachtkühlung (optional, per Schalter)
-- Lokale Anbindung (local polling), keine Cloud
+- **Grafische Lovelace-Karte** mit animierten Luftströmen und GUI-Editor – wird auf Wunsch automatisch bereitgestellt
+- **Einstellungen nachträglich änderbar** (IP, Abfrageintervall, Filterschwelle) und **Diagnose-Download** für Fehlersuche
+- Deutsch und Englisch, lokale Anbindung (local polling), keine Cloud
 
 ## Installation
 
@@ -58,6 +60,8 @@ Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 
+> **Update von einer älteren Version (Einzelgerät):** Bestehende Installationen werden automatisch migriert und behalten **alle Entitäten, Entity-IDs, Dashboards und Automationen** unverändert. Es ist keine Neueinrichtung nötig.
+
 ### Einstellungen nachträglich ändern
 
 Unter **Einstellungen → Geräte & Dienste → Maico KWL → Konfigurieren** lassen sich ohne Neueinrichtung ändern:
@@ -74,8 +78,6 @@ Nach dem Speichern lädt sich die Integration automatisch neu; Entitäten und En
 ### Diagnose herunterladen
 
 Bei Problemen hilft ein Diagnose-Dump: **Einstellungen → Geräte & Dienste → Maico KWL → ⋮ → Diagnose herunterladen**. Er enthält Version, Modell, erkannte optionale Register, die aktuellen Rohwerte und den Sommermodus-Zustand. Die IP-Adresse wird automatisch geschwärzt. Die Datei kann einem [Issue](https://github.com/theoldphilip/homeassistant-maico-kwl/issues) angehängt werden.
-
-> **Update von einer älteren Version (Einzelgerät):** Bestehende Installationen werden automatisch migriert und behalten **alle Entitäten, Entity-IDs, Dashboards und Automationen** unverändert. Es ist keine Neueinrichtung nötig.
 
 ## Entitäten
 
@@ -273,7 +275,7 @@ Danach steht die Karte unter **Karte hinzufügen → Maico KWL Card** zur Verfü
 
 ### Karte einbinden
 
-Im Dashboard eine neue Karte hinzufügen → **Manuelle Karte** → folgenden YAML-Block einfügen:
+Am einfachsten über den grafischen Editor (siehe Tipp am Ende dieses Abschnitts). Alternativ im Dashboard eine neue Karte hinzufügen → **Manuelle Karte** → folgenden YAML-Block einfügen:
 
 ```yaml
 type: custom:maico-kwl-card
@@ -324,7 +326,7 @@ content: >
   </details>
 ```
 
-> **Hinweis:** Ein grafischer Editor für die Karten-Konfiguration (ohne YAML) ist in Entwicklung.
+> **Tipp:** Die YAML-Konfiguration ist optional. Die Karte hat einen grafischen Editor: **Karte hinzufügen → Maico KWL Card** – dort wählst du Entitäten, Kartenname und Räume bequem per Oberfläche aus.
 
 ## Optionale Sensoren
 
