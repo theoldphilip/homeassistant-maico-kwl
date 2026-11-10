@@ -12,6 +12,7 @@
  * Beispiel-Konfiguration:
  *   type: custom:maico-kwl-card
  *   name: Maico WS 300 Flat
+ *   show_explanation: true      # optional: Erklärungszeile unter der Kopfzeile
  *   entities:
  *     aussenluft: sensor.maico_ws_300_flat_aussenluft
  *     zuluft:     sensor.maico_ws_300_flat_zuluft
@@ -108,6 +109,44 @@ class MaicoKwlCard extends HTMLElement {
     const denom = ab - aus;
     if (Math.abs(denom) < 0.3) return null;
     return Math.max(0, Math.min(100, Math.round(((zu - aus) / denom) * 100)));
+  }
+
+  /** Erklärt den aktuellen Modus in einem kurzen Satz */
+  _explain(status, tAus, tAb, bypass) {
+    const parts = [];
+    status = status || '';
+
+    const inaktiv  = !status || status.includes('Inaktiv');
+    const cooling  = status.includes('Kühlt');
+    const ready    = status.includes('Bereit');
+    const off      = status.includes('Anlage aus');
+    const warten   = status.includes('wartet');
+
+    if (inaktiv) {
+      parts.push('Sommermodus nicht aktiv');
+    } else if (cooling) {
+      if (tAus !== null && tAb !== null) {
+        const diff = (tAb - tAus).toFixed(1);
+        parts.push(`Außen ${diff} °C kühler als innen`);
+      } else {
+        parts.push('Nachtkühlung aktiv');
+      }
+    } else if (off) {
+      parts.push('Außentemperatur zu hoch für Kühlung');
+    } else if (ready && warten) {
+      if (tAus !== null && tAb !== null) {
+        const diff = (tAb - tAus).toFixed(1);
+        parts.push(`Bereit – Δ ${diff} °C (Mindestdifferenz noch nicht erreicht)`);
+      } else {
+        parts.push('Bereit – wartet auf Kühlbedingungen');
+      }
+    } else if (warten) {
+      parts.push(status.split('–')[1]?.trim() || 'Mindest-Laufzeit läuft');
+    }
+
+    if (bypass === 'Offen') parts.push('Bypass offen (Firmware)');
+
+    return parts.join(' · ');
   }
 
   /* ──────────────────────────────────── Arrow SVG helper ── */
@@ -228,6 +267,14 @@ class MaicoKwlCard extends HTMLElement {
     color: var(--secondary-text-color);
     margin-top: 4px;
     text-align: right;
+  }
+  .explain {
+    padding: 6px 16px 8px;
+    font-size: 11px;
+    color: var(--secondary-text-color);
+    background: var(--secondary-background-color, rgba(0,0,0,.03));
+    border-bottom: 1px solid var(--divider-color, rgba(0,0,0,.12));
+    font-style: italic;
   }
 
   /* ── Device section ── */
@@ -413,6 +460,11 @@ class MaicoKwlCard extends HTMLElement {
     const sub = [stufe, vol !== null ? `${Math.round(vol)} m³/h` : null]
       .filter(Boolean).join(' · ');
 
+    /* Erklärungszeile (optional: show_explanation) */
+    const explain = cfg.show_explanation
+      ? this._explain(status, tAus, tAb, bypass)
+      : '';
+
     /* Räume */
     const defaultZu = [
       { name: 'Schlafzimmer',  icon: '🛏' },
@@ -455,6 +507,7 @@ ${this._css(dark)}
       ${sub ? `<div class="sub-info">${sub}</div>` : ''}
     </div>
   </div>
+  ${explain ? `<div class="explain">${explain}</div>` : ''}
 
   <!-- Device schema -->
   <div class="device">
@@ -669,6 +722,11 @@ class MaicoKwlCardEditor extends HTMLElement {
 
   /* ── Hint ── */
   .hint { font-size: 11px; color: var(--secondary-text-color); margin-top: 2px; }
+
+  /* ── Checkbox ── */
+  .chk { display: flex !important; align-items: center; gap: 8px; cursor: pointer;
+         font-size: 14px !important; color: var(--primary-text-color) !important; }
+  .chk input { width: 18px; height: 18px; margin: 0; }
 </style>
 
 <div class="wrap">
@@ -680,6 +738,13 @@ class MaicoKwlCardEditor extends HTMLElement {
       <label>Kartenname</label>
       <input id="inp-name" type="text"
              value="${cfg.name || ''}" placeholder="Maico WS 300 Flat">
+    </div>
+    <div class="field">
+      <label class="chk">
+        <input id="inp-explain" type="checkbox" ${cfg.show_explanation ? 'checked' : ''}>
+        Erklärungszeile anzeigen
+      </label>
+      <p class="hint">Zeigt unter der Kopfzeile in einem Satz, warum die Anlage gerade so läuft (z. B. „Außen 3,2 °C kühler als innen“).</p>
     </div>
   </div>
 
@@ -735,6 +800,12 @@ class MaicoKwlCardEditor extends HTMLElement {
       const nameInput = this._shadow.getElementById('inp-name');
       nameInput?.addEventListener('change', (ev) => {
         this._config = { ...this._config, name: ev.target.value };
+        this._fire();
+      });
+
+      /* Erklärungszeile ein/aus */
+      this._shadow.getElementById('inp-explain')?.addEventListener('change', (ev) => {
+        this._config = { ...this._config, show_explanation: ev.target.checked };
         this._fire();
       });
 
@@ -805,7 +876,7 @@ if (!customElements.get('maico-kwl-card-editor')) {
 }
 
 console.info(
-  '%c MAICO-KWL-CARD %c v1.3.1 ',
+  '%c MAICO-KWL-CARD %c v1.4.0 ',
   'background:#1A74AF;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px;font-weight:bold',
   'background:#157A5A;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0'
 );

@@ -280,6 +280,7 @@ Am einfachsten über den grafischen Editor (siehe Tipp am Ende dieses Abschnitts
 ```yaml
 type: custom:maico-kwl-card
 name: Maico WS 300 Flat
+show_explanation: true   # optional: Erklärungszeile unter der Kopfzeile
 entities:
   aussenluft:   sensor.maico_ws_300_flat_aussenluft
   zuluft:       sensor.maico_ws_300_flat_zuluft
@@ -302,6 +303,18 @@ rooms:
 ```
 
 Die Entity-IDs entsprechen der Standard-Benennung dieser Integration. Bei abweichenden Namen (z.B. durch mehrere Geräte) die IDs entsprechend anpassen. Räume sind vollständig konfigurierbar – Name, Icon und Anzahl lassen sich frei wählen.
+
+### Erklärungszeile (optional)
+
+Mit `show_explanation: true` (im grafischen Editor: **„Erklärungszeile anzeigen“**) zeigt die Karte unter der Kopfzeile in einem Satz, warum die Anlage gerade so läuft, zum Beispiel:
+
+- „Außen 3.2 °C kühler als innen“ – Nachtkühlung läuft
+- „Außentemperatur zu hoch für Kühlung“ – Anlage ist aus
+- „Bereit – Δ 1.1 °C (Mindestdifferenz noch nicht erreicht)“ – wartet auf Kühlbedingungen
+- „Sommermodus nicht aktiv“ – Sommermodus ist ausgeschaltet
+- zusätzlich „· Bypass offen (Firmware)“, wenn der Bypass offen ist (das Gerät steuert ihn selbst)
+
+Standardmäßig ist die Zeile aus.
 
 ### Erklärungstext (optional)
 

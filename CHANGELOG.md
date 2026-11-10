@@ -3,6 +3,11 @@
 Alle nennenswerten Änderungen an dieser Integration. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Bestehende Installationen werden bei jedem Update automatisch migriert – Entitäten und Entity-IDs bleiben stabil.
 
+## [1.8.1] – 2026-11-11
+
+### Neu
+- **Karte: Erklärungszeile** (optional, `show_explanation: true` oder Schalter „Erklärungszeile anzeigen“ im grafischen Editor). Zeigt unter der Kopfzeile in einem Satz, warum die Anlage gerade so läuft („Außen 3.2 °C kühler als innen“, „Außentemperatur zu hoch für Kühlung“, „Bypass offen (Firmware)“ …). Standardmäßig aus. Karte v1.4.0.
+
 ## [1.8.0] – 2026-11-11
 
 ### Neu
@@ -134,6 +139,7 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 
 - Erste Version: Steuerung (Lüftungsstufe + Betriebsart), Sensoren, Filterwarnung, Wärmerückgewinnung und Sommermodus mit Nachtkühlung.
 
+[1.8.1]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.9...v1.8.0
 [1.7.9]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.8...v1.7.9
 [1.7.8]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.7...v1.7.8
