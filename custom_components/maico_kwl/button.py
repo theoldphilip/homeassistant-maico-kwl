@@ -3,6 +3,7 @@ import logging
 
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -82,7 +83,7 @@ class MaicoKWLFehlerResetButton(ButtonEntity):
     _attr_name = "Fehler quittieren"
     _attr_has_entity_name = True
     _attr_icon = "mdi:alert-circle-check"
-    _attr_entity_category = "diagnostic"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
         self.coordinator = coordinator
