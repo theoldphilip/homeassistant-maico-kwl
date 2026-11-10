@@ -7,7 +7,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, FILTER_WARNING_DAYS, DEVICE_MODEL
+from .const import DOMAIN, FILTER_WARNING_DAYS, DEVICE_MODEL, entry_config
 from .coordinator import MaicoKWLCoordinator
 from .profiles import build_unique_id
 
@@ -32,7 +32,9 @@ async def async_setup_entry(
 
 
     # Read configurable filter warning threshold (Tage)
-    filter_warning_days = config_entry.data.get("filter_warning_days", FILTER_WARNING_DAYS)
+    filter_warning_days = int(
+        entry_config(config_entry).get("filter_warning_days", FILTER_WARNING_DAYS)
+    )
 
     async_add_entities(
         [

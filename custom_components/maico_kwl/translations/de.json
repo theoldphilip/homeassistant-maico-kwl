@@ -24,5 +24,29 @@
     "abort": {
       "already_configured": "Gerät ist bereits konfiguriert"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Maico KWL – Einstellungen",
+        "description": "Einstellungen ändern, ohne die Integration neu einzurichten. Nach dem Speichern wird die Integration automatisch neu geladen.",
+        "data": {
+          "host": "IP-Adresse",
+          "scan_interval": "Abfrageintervall (Sekunden)",
+          "filter_warning_days": "Filterwechsel-Warnung (Tage)",
+          "card_autoload": "Karte automatisch bereitstellen"
+        },
+        "data_description": {
+          "host": "IP-Adresse der Lüftungsanlage (bei PushPull: IP des LAN-Gateways)",
+          "scan_interval": "Wie oft die Anlage abgefragt wird (10–600 s, Standard 30)",
+          "filter_warning_days": "Warnung auslösen, wenn der Zuluftfilter ≤ X Tage Restlaufzeit hat",
+          "card_autoload": "Die mitgelieferte Maico-Karte wird automatisch ins Dashboard geladen – eine manuelle Ressource ist dann nicht nötig. Wer die Karte schon manuell eingebunden hat, lässt das aus. Nach dem Speichern die Browser-Seite neu laden."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum Gerät fehlgeschlagen",
+      "already_configured": "Diese IP-Adresse wird bereits von einem anderen Eintrag verwendet"
+    }
   }
 }

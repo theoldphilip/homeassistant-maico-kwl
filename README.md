@@ -58,6 +58,23 @@ Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB
 
 Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 
+### Einstellungen nachträglich ändern
+
+Unter **Einstellungen → Geräte & Dienste → Maico KWL → Konfigurieren** lassen sich ohne Neueinrichtung ändern:
+
+| Einstellung | Beschreibung |
+|---|---|
+| IP-Adresse | Neue Adresse der Anlage (wird vor dem Speichern per Verbindungstest geprüft) |
+| Abfrageintervall | 10–600 Sekunden, Standard 30 |
+| Filterwechsel-Warnung | Schwelle in Tagen für die Filterwarnung |
+| Karte automatisch bereitstellen | Lovelace-Karte wird von der Integration geladen (siehe [Lovelace Custom Card](#lovelace-custom-card)) |
+
+Nach dem Speichern lädt sich die Integration automatisch neu; Entitäten und Entity-IDs bleiben unverändert.
+
+### Diagnose herunterladen
+
+Bei Problemen hilft ein Diagnose-Dump: **Einstellungen → Geräte & Dienste → Maico KWL → ⋮ → Diagnose herunterladen**. Er enthält Version, Modell, erkannte optionale Register, die aktuellen Rohwerte und den Sommermodus-Zustand. Die IP-Adresse wird automatisch geschwärzt. Die Datei kann einem [Issue](https://github.com/theoldphilip/homeassistant-maico-kwl/issues) angehängt werden.
+
 > **Update von einer älteren Version (Einzelgerät):** Bestehende Installationen werden automatisch migriert und behalten **alle Entitäten, Entity-IDs, Dashboards und Automationen** unverändert. Es ist keine Neueinrichtung nötig.
 
 ## Entitäten
@@ -241,19 +258,18 @@ Niedrigerer Wert = empfindlichere Überwachung (Hinweis früher). Standard: 100 
 
 ## Lovelace Custom Card
 
-Zum Lieferumfang gehört eine grafische Lovelace-Karte (`lovelace/maico-kwl-card.js`), die die Anlage als interaktives Schema darstellt – mit animierten Luftstrom-Pfeilen, Temperaturanzeige an allen vier Anschlüssen, Wärmetauscher-Wirkungsgrad, Bypass-Status und einer konfigurierbaren Raumübersicht.
+Zum Lieferumfang gehört eine grafische Lovelace-Karte (`custom_components/maico_kwl/www/maico-kwl-card.js`), die die Anlage als interaktives Schema darstellt – mit animierten Luftstrom-Pfeilen, Temperaturanzeige an allen vier Anschlüssen, Wärmetauscher-Wirkungsgrad, Bypass-Status und einer konfigurierbaren Raumübersicht.
 
 ### Installation der Karte
 
-1. Die Datei `lovelace/maico-kwl-card.js` aus dem Repo in den Ordner `config/www/` deiner Home-Assistant-Installation kopieren.
+**Automatisch (empfohlen):** Die Integration liefert die Karte selbst aus und lädt sie ins Dashboard – du musst nichts kopieren und keine Ressource anlegen.
 
-2. In HA die Ressource registrieren: **Einstellungen → Dashboards → ⋮ → Ressourcen → Hinzufügen**
-   ```
-   URL:  /local/maico-kwl-card.js
-   Typ:  JavaScript-Modul
-   ```
+- **Neue Installationen:** Die Option ist von Anfang an aktiv.
+- **Bestehende Installationen:** **Einstellungen → Geräte & Dienste → Maico KWL → Konfigurieren** → „Karte automatisch bereitstellen“ aktivieren, danach die Browser-Seite neu laden (**Strg+Shift+R**). Wenn du die Karte bisher manuell eingebunden hast, entferne die alte Ressource (`/local/maico-kwl-card.js`) und die Datei in `config/www/`, sonst gewinnt die Version, die zuerst geladen wird.
 
-3. HA-Browser-Cache leeren (**Strg+Shift+R**).
+Danach steht die Karte unter **Karte hinzufügen → Maico KWL Card** zur Verfügung.
+
+**Manuell (Alternative):** Die Datei `custom_components/maico_kwl/www/maico-kwl-card.js` in den Ordner `config/www/` kopieren und unter **Einstellungen → Dashboards → ⋮ → Ressourcen** als `JavaScript-Modul` mit der URL `/local/maico-kwl-card.js` eintragen. Die Option „Karte automatisch bereitstellen“ bleibt dann aus.
 
 ### Karte einbinden
 
@@ -357,7 +373,7 @@ Temperaturen werden als `int16` mit Faktor 0,1 gelesen.
 
 ## Voraussetzungen
 
-- Home Assistant 2024.1.0 oder neuer
+- Home Assistant 2024.12.0 oder neuer
 - Ein unterstütztes Maico-Gerät (siehe oben) mit aktiviertem Modbus TCP, erreichbar im Netzwerk (bei PushPull über ein LAN-Gateway)
 
 ## Haftungsausschluss

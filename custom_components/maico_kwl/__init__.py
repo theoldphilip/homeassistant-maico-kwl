@@ -7,7 +7,12 @@ from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
-from .const import DOMAIN
+from .const import (
+    CONF_CARD_AUTOLOAD,
+    CONF_SCAN_INTERVAL,
+    DOMAIN,
+    entry_config,
+)
 from .coordinator import MaicoKWLCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,12 +68,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # new installs get per-entry-unique ids so multiple devices don't collide.
     legacy_ids = entry.data.get("legacy_ids", False)
 
+    # Optionen (aus dem Options-Dialog) überschreiben die Einrichtungsdaten.
+    cfg = entry_config(entry)
+
     coordinator = MaicoKWLCoordinator(
         hass,
-        entry.data[CONF_HOST],
-        entry.data.get(CONF_PORT, 502),
-        entry.data.get("unit_id", 1),
-        entry.data.get("scan_interval", 30),
+        cfg[CONF_HOST],
+        cfg.get(CONF_PORT, 502),
+        cfg.get("unit_id", 1),
+        cfg.get(CONF_SCAN_INTERVAL, 30),
         profile_key,
     )
     
@@ -78,7 +86,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not connected:
         await coordinator.async_shutdown()
         raise ConfigEntryNotReady(
-            f"Verbindung zu {entry.data[CONF_HOST]} fehlgeschlagen"
+            f"Verbindung zu {cfg[CONF_HOST]} fehlgeschlagen"
         )
     
     # Initial data refresh
@@ -96,6 +104,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     # Setup platforms
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Mitgelieferte Lovelace-Karte automatisch bereitstellen (Option je Eintrag;
+    # aktiv, sobald mindestens ein Eintrag sie wünscht).
+    await _async_update_card_registration(hass)
     
     entry.async_on_unload(entry.add_update_listener(update_listener))
     
@@ -114,6 +126,23 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
     
     return unload_ok
+
+
+async def _async_update_card_registration(hass: HomeAssistant) -> None:
+    """Karte registrieren oder entfernen, je nach Option der Einträge."""
+    from .card import async_disable_card, async_enable_card
+
+    want = any(
+        entry_config(e).get(CONF_CARD_AUTOLOAD, False)
+        for e in hass.config_entries.async_entries(DOMAIN)
+    )
+    try:
+        if want:
+            await async_enable_card(hass)
+        else:
+            async_disable_card(hass)
+    except Exception as err:  # Karte darf das Laden der Integration nie verhindern
+        _LOGGER.warning("Maico KWL: Karten-Bereitstellung fehlgeschlagen: %s", err)
 
 
 async def update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

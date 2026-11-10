@@ -8,16 +8,28 @@ from pymodbus.client import AsyncModbusTcpClient
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
 )
 
-from .const import DOMAIN, DEFAULT_MODBUS_PORT
+from .const import (
+    CONF_CARD_AUTOLOAD,
+    CONF_FILTER_WARNING_DAYS,
+    CONF_SCAN_INTERVAL,
+    DOMAIN,
+    DEFAULT_MODBUS_PORT,
+    DEFAULT_SCAN_INTERVAL,
+    entry_config,
+)
 from .profiles import all_models, model_to_profile_key, get_profile, DEFAULT_MODEL
 
 _LOGGER = logging.getLogger(__name__)
@@ -92,6 +104,10 @@ class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         "unit_id": 1,
                         "scan_interval": 30,
                         "filter_warning_days": user_input.get("filter_warning_days", 7),
+                        # Neue Installationen: mitgelieferte Karte automatisch
+                        # bereitstellen. Bestehende Einträge haben den Schlüssel
+                        # nicht -> aus (keine Überraschung bei manueller Karte).
+                        CONF_CARD_AUTOLOAD: True,
                         "model": model,
                         "profile": profile_key,
                     },
@@ -106,6 +122,89 @@ class MaicoKWLConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             },
         )
 
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: config_entries.ConfigEntry):
+        """Options-Dialog (IP, Abfrageintervall, Filterschwelle, Karte)."""
+        return MaicoKWLOptionsFlow()
+
     async def async_step_import(self, import_data: Dict[str, Any]) -> FlowResult:
         """Handle import from configuration.yaml."""
         return await self.async_step_user(import_data)
+
+
+class MaicoKWLOptionsFlow(config_entries.OptionsFlow):
+    """Einstellungen nachträglich ändern, ohne die Integration neu einzurichten."""
+
+    async def async_step_init(
+        self, user_input: Optional[Dict[str, Any]] = None
+    ) -> FlowResult:
+        errors: Dict[str, str] = {}
+        entry = self.config_entry
+        cfg = entry_config(entry)
+
+        if user_input is not None:
+            new_host = user_input[CONF_HOST].strip()
+
+            # Eine IP, die schon von einem anderen Eintrag genutzt wird, ablehnen.
+            for other in self.hass.config_entries.async_entries(DOMAIN):
+                if other.entry_id != entry.entry_id and (
+                    entry_config(other).get(CONF_HOST) == new_host
+                ):
+                    errors[CONF_HOST] = "already_configured"
+
+            # Verbindung nur prüfen, wenn sich die IP geändert hat.
+            if not errors and new_host != cfg.get(CONF_HOST):
+                ok = await validate_modbus_connection(
+                    new_host,
+                    cfg.get("port", DEFAULT_MODBUS_PORT),
+                    cfg.get("unit_id", 1),
+                )
+                if not ok:
+                    errors[CONF_HOST] = "cannot_connect"
+
+            if not errors:
+                options = {
+                    CONF_HOST: new_host,
+                    CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL]),
+                    CONF_FILTER_WARNING_DAYS: int(user_input[CONF_FILTER_WARNING_DAYS]),
+                    CONF_CARD_AUTOLOAD: bool(user_input[CONF_CARD_AUTOLOAD]),
+                }
+                if new_host != cfg.get(CONF_HOST):
+                    model = entry.data.get("model", DEFAULT_MODEL)
+                    self.hass.config_entries.async_update_entry(
+                        entry,
+                        title=f"Maico {model} ({new_host})",
+                        unique_id=new_host,
+                        options=options,
+                    )
+                return self.async_create_entry(title="", data=options)
+
+        schema = vol.Schema({
+            vol.Required(CONF_HOST, default=cfg.get(CONF_HOST, "")): cv.string,
+            vol.Required(
+                CONF_SCAN_INTERVAL,
+                default=cfg.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=10, max=600, step=5,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="s",
+                )
+            ),
+            vol.Required(
+                CONF_FILTER_WARNING_DAYS,
+                default=cfg.get(CONF_FILTER_WARNING_DAYS, 7),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=1, max=365, step=1,
+                    mode=NumberSelectorMode.BOX,
+                    unit_of_measurement="d",
+                )
+            ),
+            vol.Required(
+                CONF_CARD_AUTOLOAD,
+                default=cfg.get(CONF_CARD_AUTOLOAD, False),
+            ): BooleanSelector(),
+        })
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

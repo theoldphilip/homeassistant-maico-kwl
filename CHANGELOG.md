@@ -3,6 +3,19 @@
 Alle nennenswerten Änderungen an dieser Integration. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Bestehende Installationen werden bei jedem Update automatisch migriert – Entitäten und Entity-IDs bleiben stabil.
 
+## [1.8.0] – 2026-11-11
+
+### Neu
+- **Karte automatisch bereitstellen:** Die Integration liefert die Lovelace-Karte selbst aus und lädt sie ins Dashboard. Kopieren nach `www` und manuelle Ressource entfallen. Aktiv bei neuen Installationen; bestehende Installationen schalten die Option unter „Konfigurieren“ ein. Eine bereits manuell eingebundene Karte wird nicht angetastet.
+- **Options-Dialog:** IP-Adresse, Abfrageintervall, Filterschwelle und Kartenoption lassen sich nachträglich ändern (mit Verbindungstest bei neuer IP, Schutz vor doppelter IP). Die Integration lädt sich danach automatisch neu.
+- **Diagnose-Download** (Gerät → Diagnose herunterladen): Version, Modell, erkannte Register, Rohwerte, Sommermodus-Zustand. Die IP-Adresse wird geschwärzt.
+- **Englische Übersetzung** der Einrichtung und des Options-Dialogs.
+
+### Geändert
+- Die Kartendatei liegt jetzt in `custom_components/maico_kwl/www/` (früher `lovelace/`). Bestehende manuelle Installationen unter `/local/maico-kwl-card.js` laufen unverändert weiter.
+- Karte v1.3.1: eine doppelte Registrierung (manuell und automatisch) wird abgefangen.
+- Abhängigkeiten: `http` und `frontend`. Mindestversion Home Assistant **2024.12.0** (für den Options-Dialog).
+
 ## [1.7.9] – 2026-11-10
 
 ### Neu
@@ -48,7 +61,7 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 ## [1.7.3] – 2026-06-29
 
 ### Neu
-- **Lovelace Custom Card** (`lovelace/maico-kwl-card.js`): animierte Luftstrom-Pfeile, farbcodierte Temperaturen, WRG-Wirkungsgrad, Lüftungsstufe, Bypass-Status, Luftfeuchte, Dark/Light-Mode, konfigurierbare Raumübersicht und vollständiger GUI-Editor.
+- **Lovelace Custom Card** (`maico-kwl-card.js`): animierte Luftstrom-Pfeile, farbcodierte Temperaturen, WRG-Wirkungsgrad, Lüftungsstufe, Bypass-Status, Luftfeuchte, Dark/Light-Mode, konfigurierbare Raumübersicht und vollständiger GUI-Editor.
 
 ### Behoben
 - Sommermodus: Pendeln bei Grenztemperaturen und irreführende Status-Anzeige (siehe 1.7.2).
@@ -121,6 +134,7 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 
 - Erste Version: Steuerung (Lüftungsstufe + Betriebsart), Sensoren, Filterwarnung, Wärmerückgewinnung und Sommermodus mit Nachtkühlung.
 
+[1.8.0]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.9...v1.8.0
 [1.7.9]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.8...v1.7.9
 [1.7.8]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.7...v1.7.8
 [1.7.7]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v.1.7.6...v1.7.7

@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Maico KWL",
+        "description": "Select your Maico model and enter the IP address of the ventilation unit.",
+        "data": {
+          "host": "IP address",
+          "model": "Model",
+          "filter_warning_days": "Filter change warning (days)"
+        },
+        "data_description": {
+          "host": "IP address of the ventilation unit (PushPull: IP of the LAN gateway)",
+          "model": "The connected Maico device",
+          "filter_warning_days": "Trigger a warning when the supply air filter has ≤ X days remaining"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unknown error"
+    },
+    "abort": {
+      "already_configured": "Device is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Maico KWL – Settings",
+        "description": "Change settings without setting up the integration again. The integration reloads automatically after saving.",
+        "data": {
+          "host": "IP address",
+          "scan_interval": "Polling interval (seconds)",
+          "filter_warning_days": "Filter change warning (days)",
+          "card_autoload": "Provide card automatically"
+        },
+        "data_description": {
+          "host": "IP address of the ventilation unit (PushPull: IP of the LAN gateway)",
+          "scan_interval": "How often the unit is polled (10–600 s, default 30)",
+          "filter_warning_days": "Trigger a warning when the supply air filter has ≤ X days remaining",
+          "card_autoload": "Loads the bundled Maico card into the dashboard automatically, so no manual resource is needed. Leave this off if you already added the card manually. Reload the browser page after saving."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the device",
+      "already_configured": "This IP address is already used by another entry"
+    }
+  }
+}

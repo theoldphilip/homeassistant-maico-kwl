@@ -122,3 +122,16 @@ ATTR_BETRIEBSART = "betriebsart"
 ATTR_LUEFTUNGSSTUFE = "lueftungsstufe"
 ATTR_FILTER_RESTLAUFZEIT = "filter_restlaufzeit_tage"
 ATTR_WAERMERUECKGEWINNUNG = "waermerueckgewinnung"
+
+
+# ---------------------------------------------------------------------------
+# Konfiguration eines Config-Entries (Optionen überschreiben die Einrichtung)
+# ---------------------------------------------------------------------------
+CONF_SCAN_INTERVAL = "scan_interval"
+CONF_FILTER_WARNING_DAYS = "filter_warning_days"
+CONF_CARD_AUTOLOAD = "card_autoload"
+
+
+def entry_config(entry) -> dict:
+    """Wirksame Konfiguration: Optionen überschreiben die Einrichtungsdaten."""
+    return {**entry.data, **entry.options}

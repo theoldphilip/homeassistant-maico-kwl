@@ -5,9 +5,9 @@
  * GitHub: https://github.com/theoldphilip/homeassistant-maico-kwl
  * Version: 1.0.0
  *
- * Einbindung in resources (configuration.yaml oder HA-UI):
- *   - url: /local/maico-kwl-card.js
- *     type: module
+ * Einbindung: wird von der Integration automatisch bereitgestellt (Option
+ * „Karte automatisch bereitstellen“). Alternativ manuell als Ressource:
+ *   URL: /local/maico-kwl-card.js   Typ: JavaScript-Modul
  *
  * Beispiel-Konfiguration:
  *   type: custom:maico-kwl-card
@@ -788,20 +788,24 @@ class MaicoKwlCardEditor extends HTMLElement {
 }
 
 /* ── Registrierung ── */
-customElements.define('maico-kwl-card', MaicoKwlCard);
+if (!customElements.get('maico-kwl-card')) {
+  customElements.define('maico-kwl-card', MaicoKwlCard);
+}
 
 window.customCards = window.customCards || [];
-window.customCards.push({
+if (!window.customCards.some((c) => c.type === 'maico-kwl-card')) window.customCards.push({
   type:        'maico-kwl-card',
   name:        'Maico KWL Card',
   description: 'Grafische Karte für Maico KWL Lüftungsanlagen mit animierten Luftströmen.',
   preview:     true,
 });
 
-customElements.define('maico-kwl-card-editor', MaicoKwlCardEditor);
+if (!customElements.get('maico-kwl-card-editor')) {
+  customElements.define('maico-kwl-card-editor', MaicoKwlCardEditor);
+}
 
 console.info(
-  '%c MAICO-KWL-CARD %c v1.3.0 ',
+  '%c MAICO-KWL-CARD %c v1.3.1 ',
   'background:#1A74AF;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px;font-weight:bold',
   'background:#157A5A;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0'
 );
