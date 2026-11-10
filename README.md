@@ -62,6 +62,8 @@ Port (502), Unit-ID (1) und Abfrageintervall (30 s) sind voreingestellt.
 
 ## Entitäten
 
+> **Hinweis zu den Entity-IDs:** Die in dieser README genannten IDs (z. B. `number.maico_kwl_dauer_lueftungsstufe`) sind **Beispiele**. Die tatsächliche Entity-ID entsteht in Home Assistant aus dem Gerätenamen und kann bei dir anders lauten, z. B. `number.htr_maico_ws_300_flat_dauer_stossluftung`. Bestehende Installationen behalten ihre ursprünglichen IDs. Die genaue ID siehst du unter **Einstellungen → Geräte & Dienste → Maico KWL → Entität anklicken → Zahnrad**. Verwende in Automationen und Dashboards immer die ID aus deiner eigenen Installation.
+
 ### Steuerung
 
 | Entität | Typ | Beschreibung |
@@ -177,8 +179,8 @@ Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Ma
 |---|---|
 | `maico_kwl_temp_raum` | Temperatur Raum (Gerätefühler, Register 700) |
 | `maico_kwl_bh_feuchteschutz` … `_gesamt` | Betriebsstunden je Stufe + gesamt (850–859, 32-Bit) |
-| `maico_kwl_fehler` | Aktueller Fehler (OK / Aktiv, Bitfeld 401/402 als Attribut) |
-| `maico_kwl_hinweis` | Aktueller Hinweis (OK / Aktiv, Bitfeld 403/404 als Attribut) |
+| `maico_kwl_fehler` | Aktueller Fehler (OK / Aktiv, Bitfeld 401/402 als Attribut; Kategorie „Diagnose“) |
+| `maico_kwl_hinweis` | Aktueller Hinweis (OK / Aktiv, Bitfeld 403/404 als Attribut; Kategorie „Diagnose“) |
 
 ### Steuerung (schreibt direkt ins Gerät)
 
@@ -189,6 +191,11 @@ Zusätzlich zu den Basis-Funktionen sind weitere Register aus der offiziellen Ma
 | `number.maico_kwl_dauer_lueftungsstufe` | 153 | Dauer der Stoßlüftung (5–90 min) |
 | `button.maico_kwl_stosslueftung` | 551 | Stoßlüftung auslösen (Intensiv für die eingestellte Dauer) |
 | `button.maico_kwl_fehler_reset` | 405 | Aktive Gerätfehler quittieren (schreibt 1 → Reset) |
+| `button.maico_kwl_filterwechsel_geraet` | 157 | Filter gewechselt (Gerätefilter) – setzt den Filterzähler zurück |
+| `button.maico_kwl_filterwechsel_aussen` | 158 | Filter gewechselt (Außenluftfilter) |
+| `button.maico_kwl_filterwechsel_raum` | 159 | Filter gewechselt (Raumluftfilter) |
+
+> **Filterwechsel quittieren:** Nach dem Tausch eines Filters drückst du den passenden Button, das Gerät setzt dann den Zähler dieses Filters zurück (Wert 1 = „Filter gewechselt“). Es gibt bewusst je Filter einen eigenen Button, damit nur quittiert wird, was wirklich getauscht wurde. Die Buttons werden **nur angelegt, wenn dein Gerät das jeweilige Register kennt** (automatische Feature-Erkennung) und liegen in der Kategorie „Diagnose“. Im Home-Assistant-Log (Info-Ebene) steht beim Start, welche optionalen Register erkannt wurden.
 
 ### Volumenstrom-Sollwerte je Stufe
 

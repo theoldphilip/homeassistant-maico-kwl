@@ -118,6 +118,11 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
                 self._absent_features.add(key)
         if self._absent_features:
             _LOGGER.debug("Absent optional features: %s", sorted(self._absent_features))
+        present = sorted(
+            k for k, r in self.registers.items()
+            if r.optional and k not in self._absent_features
+        )
+        _LOGGER.info("Maico KWL: erkannte optionale Register: %s", present or "keine")
 
     def feature_present(self, key: str) -> bool:
         """True if an optional feature/register is present on this device."""

@@ -107,6 +107,11 @@ KWL_ZENTRAL_REGISTERS: dict[str, RegisterDef] = {
     "fehler_reset": RegisterDef(405, writable=True),
     # Filterüberwachung
     "filter_delta_p": RegisterDef(900, writable=True),
+    # Filterwechsel quittieren (1 = Filter gewechselt). Optional: wird per
+    # Probe erkannt, Buttons entstehen nur für Register, die das Gerät kennt.
+    "filterwechsel_geraet": RegisterDef(157, optional=True, writable=True),
+    "filterwechsel_aussen": RegisterDef(158, optional=True, writable=True),
+    "filterwechsel_raum": RegisterDef(159, optional=True, writable=True),
     # operating hours (32-bit High/Low)
     "bh_feuchteschutz": RegisterDef(850, width=2),
     "bh_reduziert": RegisterDef(852, width=2),

@@ -5,7 +5,13 @@ from datetime import datetime, timezone
 
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTemperature, PERCENTAGE, UnitOfPower, UnitOfEnergy
+from homeassistant.const import (
+    EntityCategory,
+    UnitOfTemperature,
+    PERCENTAGE,
+    UnitOfPower,
+    UnitOfEnergy,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
@@ -552,6 +558,7 @@ class MaicoKWLDiagnosticSensor(MaicoKWLBaseSensor):
     """
 
     _attr_icon = "mdi:alert-circle-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator, config_entry, data_key, name, source_keys):
         super().__init__(coordinator, config_entry, data_key, name)

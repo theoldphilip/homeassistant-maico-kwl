@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an dieser Integration. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Bestehende Installationen werden bei jedem Update automatisch migriert – Entitäten und Entity-IDs bleiben stabil.
 
+## [1.7.9] – 2026-11-10
+
+### Neu
+- **Filterwechsel quittieren (R157/158/159):** drei Buttons „Filter gewechselt“ für Gerätefilter, Außenluft- und Raumluftfilter (Kategorie Diagnose). Sie entstehen nur für Register, die das Gerät beantwortet (automatische Feature-Erkennung). Je Filter ein eigener Button, damit nur quittiert wird, was wirklich getauscht wurde.
+- Beim Start steht im Log (Info-Ebene), welche optionalen Register erkannt wurden.
+
+### Geändert
+- **Fehler- und Hinweis-Sensor** sind jetzt der Kategorie „Diagnose“ zugeordnet und erscheinen nicht mehr unter den normalen Sensoren.
+
+### Dokumentation
+- README: Hinweis, dass die genannten Entity-IDs Beispiele sind und die tatsächliche ID vom Gerätenamen abhängt; Filterwechsel-Buttons dokumentiert.
+
 ## [1.7.8] – 2026-11-10
 
 ### Behoben
@@ -109,5 +121,6 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 
 - Erste Version: Steuerung (Lüftungsstufe + Betriebsart), Sensoren, Filterwarnung, Wärmerückgewinnung und Sommermodus mit Nachtkühlung.
 
+[1.7.9]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.8...v1.7.9
 [1.7.8]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.7.7...v1.7.8
 [1.7.7]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v.1.7.6...v1.7.7
