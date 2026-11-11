@@ -276,7 +276,9 @@ Niedrigerer Wert = empfindlichere Überwachung (Hinweis früher). Standard: 100 
 
 ## Lovelace Custom Card
 
-Zum Lieferumfang gehört eine grafische Lovelace-Karte (`custom_components/maico_kwl/www/maico-kwl-card.js`), die die Anlage als interaktives Schema darstellt – mit animierten Luftstrom-Pfeilen, Temperaturanzeige an allen vier Anschlüssen, Wärmetauscher-Wirkungsgrad, Bypass-Status und einer konfigurierbaren Raumübersicht.
+Zum Lieferumfang gehört eine grafische Lovelace-Karte (`custom_components/maico_kwl/www/maico-kwl-card.js`), die die Anlage als interaktives Schema darstellt – mit animierten Luftstrom-Pfeilen, Temperaturanzeige an allen vier Anschlüssen, Wärmetauscher-Wirkungsgrad, Bypass-Status, Kennzahlen, Bedienknöpfen, Warnhinweisen und einer ausklappbaren Raumübersicht.
+
+Aufbau von oben nach unten: **Kopf** (Name, Lüftungsstufe bzw. Stoßlüftung mit Restzeit, Volumenstrom) → **Warnhinweise** (nur bei Bedarf: Fehler, Filterwechsel) → Schema → **Kennzahlen** (Strom, WRG-Gewinn, Filter) → **Bedienung** (Sommermodus, Stoßlüftung, Stufe) → **Räume** (eingeklappt).
 
 ### Installation der Karte
 
@@ -307,16 +309,25 @@ entities:
   volumenstrom: sensor.maico_ws_300_flat_volumenstrom_zuluft
   wrg:          sensor.maico_ws_300_flat_warmeruckgewinnung  # optional
   bypass:       sensor.maico_ws_300_flat_bypass_status       # optional
-  # Zusatzanzeigen (alle optional, im grafischen Editor per Checkbox):
-  filter:       sensor.maico_ws_300_flat_filterwechsel       # Filter-Restlaufzeit
-  sommer:       switch.maico_ws_300_flat_sommermodus         # Sommermodus-Schalter
-  leistung:     sensor.maico_ws_300_flat_leistung_geschatzt  # Stromleistung (W)
-  wrg_leistung: sensor.maico_ws_300_flat_warmeruckgewinnung_leistung_geschatzt
-  stoss:        button.maico_ws_300_flat_stosslueftung       # Stoßlüftung auslösen
-  stoss_rest:   sensor.maico_ws_300_flat_stosslueftung_restzeit  # Restzeit (wird mit „stoss“ gefunden)
-  fan:          fan.maico_ws_300_flat_lueftung               # öffnet die Lüftungssteuerung
-  fehler:       sensor.maico_ws_300_flat_fehler              # Anzeige nur bei Fehler
-filter_warn_days: 30     # optional: ab so vielen Resttagen wird die Filteranzeige orange
+  feuchte:      sensor.maico_ws_300_flat_relative_feuchte_abluft  # optional
+  # Zusatzfunktionen (alle optional, im grafischen Editor per Checkbox –
+  # die zugehörigen Entitäten werden dort automatisch mitgefunden):
+  leistung:     sensor.maico_ws_300_flat_leistung_geschatzt  # Kachel Strom (W)
+  wrg_leistung: sensor.maico_ws_300_flat_warmeruckgewinnung_leistung_geschatzt  # Kachel WRG-Gewinn
+  filter:       sensor.maico_ws_300_flat_filterwechsel       # Kachel + Banner Filter
+  filter_geraet: button.maico_ws_300_flat_filter_gewechselt_gerat       # Knopf „Gewechselt“ (je Filter,
+  filter_aussen: button.maico_ws_300_flat_filter_gewechselt_aussenluft  #  nur die, die dein Gerät hat)
+  filter_raum:   button.maico_ws_300_flat_filter_gewechselt_raumluft
+  sommer:       switch.maico_ws_300_flat_sommermodus         # Knopf Sommermodus
+  stoss:        button.maico_ws_300_flat_stosslueftung       # Knopf Stoßlüftung
+  stoss_rest:   sensor.maico_ws_300_flat_stosslueftung_restzeit  # Restzeit
+  fan:          fan.maico_ws_300_flat_lueftung               # Knopf Stufe (Auswahlmenü)
+  vol_reduziert: number.maico_ws_300_flat_volumenstrom_reduziert  # m³/h im Stufenmenü
+  vol_nenn:      number.maico_ws_300_flat_volumenstrom_nennlueftung
+  vol_intensiv:  number.maico_ws_300_flat_volumenstrom_intensiv
+  fehler:       sensor.maico_ws_300_flat_fehler              # Warnhinweis nur bei Fehler
+  fehler_reset: button.maico_ws_300_flat_fehler_quittieren   # Knopf „Quittieren“
+filter_warn_days: 30     # optional: ab so vielen Resttagen erscheint der Filter-Hinweis
 rooms:
   zuluft:
     - { name: Schlafzimmer,  icon: "🛏" }
@@ -328,7 +339,9 @@ rooms:
     - { name: HTR,           icon: "🔧" }
 ```
 
-Die Entity-IDs entsprechen der Standard-Benennung dieser Integration. Bei abweichenden Namen (z.B. durch mehrere Geräte) die IDs entsprechend anpassen. Räume sind vollständig konfigurierbar – Name, Icon und Anzahl lassen sich frei wählen.
+Die Entity-IDs entsprechen der Standard-Benennung dieser Integration. Bei abweichenden Namen (z.B. durch mehrere Geräte) die IDs entsprechend anpassen. Räume sind vollständig konfigurierbar – Name, Icon und Anzahl lassen sich frei wählen; die Karte zeigt sie eingeklappt als Zeile „Räume · 3 Zuluft · 3 Abluft“ und klappt sie per Tipp auf.
+
+> **Von Karte v1.x?** Bestehende Konfigurationen laufen unverändert weiter. Die früheren Chips sind jetzt Kennzahlen-Kacheln und Bedienknöpfe. Für die neuen Funktionen (Filter quittieren, Fehler quittieren, m³/h im Stufenmenü) im Editor die jeweilige Checkbox einmal aus- und wieder anhaken, dann trägt er die zusätzlichen Entitäten ein.
 
 ### Erklärungszeile (optional)
 
@@ -342,25 +355,27 @@ Mit `show_explanation: true` (im grafischen Editor: **„Erklärungszeile anzeig
 
 Standardmäßig ist die Zeile aus.
 
-### Zusatzanzeigen (optional)
+### Kennzahlen, Bedienung und Warnhinweise (optional)
 
-Im grafischen Editor gibt es den Abschnitt **Zusatzanzeigen** mit je einer Checkbox. Beim Anhaken sucht der Editor die passende Entität deiner Maico-Integration selbst (gleiches Gerät wie die Sensoren der Karte) und trägt sie ein; bei Bedarf kannst du sie im darunter erscheinenden Auswahlfeld ändern. Unter der Kopfzeile erscheint dann eine kleine Chip-Zeile:
+Im grafischen Editor gibt es den Abschnitt **Zusatzanzeigen** mit je einer Checkbox. Beim Anhaken sucht der Editor die passende Entität deiner Maico-Integration selbst (gleiches Gerät wie die Sensoren der Karte) und trägt sie samt zugehörigen Entitäten ein; bei Bedarf kannst du sie im darunter erscheinenden Auswahlfeld ändern.
 
 | Checkbox | Anzeige |
 |---|---|
-| Filteranzeige | **Filter: noch 165 Tage** – orange ab `filter_warn_days` (Standard 30), rot mit „Filter wechseln“ bei 0 Tagen |
-| Sommermodus-Schalter | **☀ Sommermodus an/aus** – ein Tipp schaltet um |
-| Stromleistung | **⚡ 26 W** (geschätzte Leistungsaufnahme) |
-| Wärmegewinn der WRG | **🔥 WRG +703 W** (siehe [Zurückgewonnene Wärme](#zurückgewonnene-wärme-schätzung)) |
-| Knopf „Stoßlüftung“ (mit Restzeit) | **💨 Stoßlüftung** – löst die Stoßlüftung aus. Solange sie läuft, steht dort **„noch 7 min“**, ebenso im Kopf der Karte und in der Erklärungszeile |
-| Knopf „Lüftung“ | **🌀 Lüftung** – öffnet die Steuerung, in der du die Lüftungsstufe ändern kannst |
-| Fehleranzeige | **⚠ Fehler aktiv** – nur sichtbar, wenn das Gerät einen Fehler meldet |
+| Stromleistung | Kachel **Strom** (geschätzte Leistungsaufnahme in W) |
+| Wärmegewinn der WRG | Kachel **WRG-Gewinn** in W (siehe [Zurückgewonnene Wärme](#zurückgewonnene-wärme-schätzung)) |
+| Filteranzeige mit „Gewechselt“ | Kachel **Filter** (Resttage; orange ab `filter_warn_days`, Standard 30, rot bei 0). Ab der Schwelle zusätzlich ein orangefarbener Hinweis **„Filterwechsel fällig“** mit Knopf **„Gewechselt“** |
+| Knopf „Sommermodus“ | Knopf mit Zustand **an/aus** – ein Tipp schaltet um |
+| Knopf „Stoßlüftung“ | Knopf löst die Stoßlüftung aus. Solange sie läuft, ist er hervorgehoben und zeigt **„noch 7 min“**, ebenso der Kopf der Karte und die Erklärungszeile |
+| Knopf „Stufe“ | öffnet ein Menü **Reduziert / Nennlüftung / Intensiv** mit den eingestellten m³/h. Die gewählte Stufe bleibt, bis du sie änderst; für zeitlich begrenzte Intensivlüftung gibt es die Stoßlüftung. Über „Weitere Einstellungen“ erreichst du die Betriebsart |
+| Fehlerhinweis mit „Quittieren“ | roter Hinweis **„Fehler am Gerät“** – nur sichtbar, wenn das Gerät einen Fehler meldet; „Quittieren“ setzt den Fehler zurück |
 
 Der Kopf der Karte zeigt die aktuelle Lüftungsstufe. „Kühlt“ und „Bereit“ erscheinen dort nur bei eingeschaltetem Sommermodus, bei laufender Stoßlüftung die Restzeit.
 
+**Filter quittieren:** „Gewechselt“ öffnet ein Menü mit je einem Häkchen für Filter Gerät, Außenluft und Raumluft (nur die, die dein Gerät meldet). Quittiert werden nur die angehakten, damit nichts zurückgesetzt wird, was nicht getauscht wurde. Hinweis: Dass das Gerät den Zähler nach dem Quittieren tatsächlich zurücksetzt, ist an der Anlage noch nicht bestätigt.
+
 Die Restzeit gilt nur für Stoßlüftungen, die über Home Assistant (Button oder Karte) ausgelöst wurden. Eine am Gerät oder in der Maico-App gestartete Stoßlüftung ist nicht sichtbar, weil das Gerät keine Restzeit meldet. Nach einem Neustart von Home Assistant beginnt die Zählung neu.
 
-Die automatische Suche braucht Administratorrechte (der Editor ist ohnehin nur für Administratoren). Findet sie eine Entität nicht, erscheint ein Hinweis und du wählst sie von Hand aus. Ohne angehakte Zusatzanzeigen ändert sich an der Karte nichts.
+Die automatische Suche braucht Administratorrechte (der Editor ist ohnehin nur für Administratoren). Findet sie eine Entität nicht, erscheint ein Hinweis und du wählst sie von Hand aus. Ohne angehakte Zusatzanzeigen zeigt die Karte nur Schema und Räume.
 
 ### Erklärungstext (optional)
 
