@@ -1,0 +1,4 @@
+# Testumgebung (Python 3.13). Die Versionen entsprechen dem lokal getesteten Stand.
+pytest-homeassistant-custom-component==0.13.316
+home-assistant-frontend==20260128.6
+pymodbus>=3.6.0

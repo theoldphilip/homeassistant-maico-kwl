@@ -12,7 +12,7 @@ from homeassistant.const import (
     UnitOfPower,
     UnitOfEnergy,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
@@ -25,6 +25,7 @@ from .const import (
     SCHALTER_STATUS_MAPPING,
     SPI_WH_PER_M3,
     STANDBY_POWER_W,
+    AIR_HEAT_CAPACITY_WH_M3K,
 )
 from .coordinator import MaicoKWLCoordinator
 from .profiles import build_unique_id
@@ -83,6 +84,8 @@ async def async_setup_entry(
         
         # Wärmerückgewinnung (berechnet)
         MaicoKWLWaermerueckgewinnungSensor(coordinator, config_entry),
+        MaicoKWLWrgPowerSensor(coordinator, config_entry),
+        MaicoKWLWrgEnergySensor(coordinator, config_entry),
 
         # Sommermodus-Status
         MaicoKWLSummerStatusSensor(coordinator, config_entry),
@@ -164,8 +167,13 @@ class MaicoKWLBaseSensor(SensorEntity):
     async def async_added_to_hass(self) -> None:
         """When entity is added to hass."""
         self.async_on_remove(
-            self.coordinator.async_add_listener(self.async_write_ha_state)
+            self.coordinator.async_add_listener(self._handle_coordinator_update)
         )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Neue Koordinator-Daten: Zustand schreiben (Unterklassen dürfen erweitern)."""
+        self.async_write_ha_state()
 
 
 class MaicoKWLTemperatureSensor(MaicoKWLBaseSensor):
@@ -405,6 +413,113 @@ class MaicoKWLWaermerueckgewinnungSensor(MaicoKWLBaseSensor):
             "temp_abluft": t_ab,
             "spread_abluft_aussenluft": spread,
             "min_spread_fuer_berechnung": self.MIN_SPREAD,
+        }
+
+
+def _wrg_heat_power_w(data: dict[str, Any] | None) -> float | None:
+    """Geschätzte, durch die Wärmerückgewinnung gewonnene Heizleistung in W.
+
+    P = 0,34 Wh/(m³·K) · Volumenstrom Zuluft · (T_Zuluft − T_Außenluft)
+
+    Es zählt nur die Wärmegewinnung (Zuluft wärmer als Außenluft). Bei offenem
+    Bypass oder in der Übergangszeit ist der Unterschied klein bzw. negativ → 0 W.
+    Fehlen Werte, ist das Ergebnis None.
+    """
+    if not data:
+        return None
+    flow = data.get("volumenstrom_zuluft")
+    t_zu = data.get("temp_zuluft")
+    t_aul = data.get("temp_aussenluft")
+    if any(not isinstance(v, (int, float)) for v in (flow, t_zu, t_aul)):
+        return None
+    if flow <= 0:
+        return 0.0
+    return max(0.0, AIR_HEAT_CAPACITY_WH_M3K * flow * (t_zu - t_aul))
+
+
+class MaicoKWLWrgPowerSensor(MaicoKWLBaseSensor):
+    """Aktuell zurückgewonnene Wärmeleistung (geschätzt)."""
+
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+    _attr_icon = "mdi:heat-wave"
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        super().__init__(coordinator, config_entry, "wrg_leistung", "Wärmerückgewinnung Leistung (geschätzt)")
+
+    @property
+    def native_value(self) -> float | None:
+        power = _wrg_heat_power_w(self.coordinator.data)
+        return None if power is None else round(power, 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "formel": "0,34 Wh/(m³·K) × Volumenstrom Zuluft × (T Zuluft − T Außenluft)",
+            "hinweis": "Schätzung aus Temperaturen und Volumenstrom, kein Wärmemengenzähler",
+        }
+
+
+class MaicoKWLWrgEnergySensor(MaicoKWLBaseSensor, RestoreEntity):
+    """Aufsummierte, zurückgewonnene Wärmeenergie (kWh, geschätzt).
+
+    Integriert die geschätzte WRG-Leistung (Trapezregel) über die Zeit zwischen
+    zwei Abfragen. Übersteht Neustarts über RestoreEntity.
+    """
+
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:heat-wave"
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        super().__init__(coordinator, config_entry, "wrg_energie", "Wärmerückgewinnung Energie (geschätzt)")
+        self._total_kwh: float = 0.0
+        self._last_ts: datetime | None = None
+        self._last_power: float | None = None
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state not in (None, "unknown", "unavailable"):
+            try:
+                self._total_kwh = float(last.state)
+            except (ValueError, TypeError):
+                self._total_kwh = 0.0
+        # Ab jetzt integrieren (Ausfallzeiten werden nicht gezählt).
+        self._last_ts = datetime.now(timezone.utc)
+        self._last_power = _wrg_heat_power_w(self.coordinator.data)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        now = datetime.now(timezone.utc)
+        if not self.coordinator.last_update_success:
+            self._last_ts, self._last_power = None, None
+        else:
+            power = _wrg_heat_power_w(self.coordinator.data)
+            if power is None:
+                self._last_ts, self._last_power = None, None
+            else:
+                if self._last_ts is not None and self._last_power is not None:
+                    elapsed_h = (now - self._last_ts).total_seconds() / 3600.0
+                    # Schutz gegen Zeitsprünge/große Lücken (> 1 h)
+                    if 0 < elapsed_h <= 1:
+                        avg_w = (self._last_power + power) / 2.0
+                        self._total_kwh += avg_w * elapsed_h / 1000.0
+                self._last_ts, self._last_power = now, power
+        self.async_write_ha_state()
+
+    @property
+    def native_value(self) -> float:
+        return round(self._total_kwh, 4)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "hinweis": "Aufsummierte Schätzung der zurückgewonnenen Heizwärme; kein geeichter Zähler",
         }
 
 

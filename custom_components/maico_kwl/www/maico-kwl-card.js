@@ -22,6 +22,9 @@
  *     stufe:      sensor.maico_ws_300_flat_luftungsstufe
  *     volumenstrom: sensor.maico_ws_300_flat_volumenstrom_zuluft
  *     wrg:        sensor.maico_ws_300_flat_warmeruckgewinnung   # optional
+ *     filter:     sensor.maico_ws_300_flat_filterwechsel        # optional: Filter-Restlaufzeit
+ *     sommer:     switch.maico_ws_300_flat_sommermodus          # optional: Schalter in der Karte
+ *   filter_warn_days: 30    # optional: ab wie vielen Resttagen der Filter orange wird
  *   rooms:
  *     zuluft:
  *       - { name: Schlafzimmer,  icon: "🛏" }
@@ -49,6 +52,7 @@ class MaicoKwlCard extends HTMLElement {
       throw new Error('[maico-kwl-card] "entities" ist erforderlich.');
     }
     this._config = config;
+    this._sig = null;
     this._render();
   }
 
@@ -78,6 +82,15 @@ class MaicoKwlCard extends HTMLElement {
     this._hass = hass;
     this._dark = !!(hass.themes && hass.themes.darkMode) ||
                  window.matchMedia('(prefers-color-scheme: dark)').matches;
+    /* Nur neu zeichnen, wenn sich ein verwendeter Zustand geändert hat –
+       sonst gehen Klicks auf die Schalter beim ständigen Neuaufbau verloren. */
+    const ids = Object.values((this._config && this._config.entities) || {});
+    const sig = JSON.stringify([this._dark, ids.map((id) => {
+      const st = hass.states[id];
+      return st ? st.state : null;
+    })]);
+    if (sig === this._sig) return;
+    this._sig = sig;
     this._render();
   }
 
@@ -277,6 +290,31 @@ class MaicoKwlCard extends HTMLElement {
     font-style: italic;
   }
 
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 16px 0;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 14px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: inherit;
+    color: var(--secondary-text-color);
+    background: var(--secondary-background-color, rgba(0,0,0,.05));
+    border: 1px solid var(--divider-color, rgba(0,0,0,.12));
+  }
+  .chip-btn { cursor: pointer; }
+  .chip-btn:hover { border-color: var(--primary-color); }
+  .chip-on   { color: var(--primary-color); border-color: var(--primary-color); }
+  .chip-warn { color: var(--warning-color, #ff9800); border-color: var(--warning-color, #ff9800); }
+  .chip-err  { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
+
   /* ── Device section ── */
   .device {
     padding: 14px 16px 12px;
@@ -448,6 +486,22 @@ class MaicoKwlCard extends HTMLElement {
     const bypass = ent.bypass ? this._state(ent.bypass) : null;
     const feuchte = ent.feuchte ? this._num(ent.feuchte) : null;
 
+    /* Optionale Zusatzanzeigen: Filter-Restlaufzeit und Sommermodus-Schalter */
+    const filterDays = ent.filter ? this._num(ent.filter) : null;
+    const warnDays   = Number.isFinite(+cfg.filter_warn_days) ? +cfg.filter_warn_days : 30;
+    const sommerOn   = ent.sommer ? this._state(ent.sommer) === 'on' : null;
+    const sommerKnown = ent.sommer && this._hass && this._hass.states[ent.sommer];
+    const chips = [];
+    if (sommerKnown) {
+      chips.push(`<button class="chip chip-btn ${sommerOn ? 'chip-on' : ''}" id="chip-sommer"
+        title="Sommermodus (Nachtkühlung) umschalten">☀ Sommermodus ${sommerOn ? 'an' : 'aus'}</button>`);
+    }
+    if (filterDays !== null) {
+      const cls = filterDays <= 0 ? 'chip-err' : filterDays <= warnDays ? 'chip-warn' : '';
+      const txt = filterDays <= 0 ? 'Filter wechseln' : `Filter: noch ${Math.round(filterDays)} Tage`;
+      chips.push(`<div class="chip ${cls}">🧰 ${txt}</div>`);
+    }
+
     /* Status-Chip */
     const cooling     = status.includes('Kühlt');
     const statusLabel = cooling           ? 'Kühlt'
@@ -508,6 +562,7 @@ ${this._css(dark)}
     </div>
   </div>
   ${explain ? `<div class="explain">${explain}</div>` : ''}
+  ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
 
   <!-- Device schema -->
   <div class="device">
@@ -591,6 +646,15 @@ ${this._css(dark)}
     </div>
   </div>
 </ha-card>`;
+
+    const btn = this._shadow.getElementById('chip-sommer');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        const id = ent.sommer;
+        const domain = id.split('.')[0];
+        this._hass.callService(domain, 'toggle', { entity_id: id });
+      });
+    }
   }
 }
 
@@ -649,6 +713,8 @@ class MaicoKwlCardEditor extends HTMLElement {
       { key: 'wrg',          label: 'Wärmerückgewinnung (optional)', req: false },
       { key: 'bypass',       label: 'Bypass Status (optional)',       req: false },
       { key: 'feuchte',      label: 'Luftfeuchte (optional)',         req: false },
+      { key: 'filter',       label: 'Filterwechsel – Restlaufzeit (optional)', req: false },
+      { key: 'sommer',       label: 'Sommermodus-Schalter (optional)', req: false },
     ];
 
     const roomRows = (group, list) => list.map((r, i) => `
@@ -876,7 +942,7 @@ if (!customElements.get('maico-kwl-card-editor')) {
 }
 
 console.info(
-  '%c MAICO-KWL-CARD %c v1.4.0 ',
+  '%c MAICO-KWL-CARD %c v1.5.0 ',
   'background:#1A74AF;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px;font-weight:bold',
   'background:#157A5A;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0'
 );

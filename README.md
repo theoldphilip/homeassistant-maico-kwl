@@ -25,6 +25,7 @@ Trio zentral, Trio dezentral, WS 120 Trio, WS 160 Flat, WS 170, WS 300 Flat / RB
 - **Automatische Feature-Erkennung** – optionale Sensoren (CO₂, externe Feuchte/VOC, Heizregister, Sole) werden nur angelegt, wenn das Gerät sie hat
 - **Wärmerückgewinnung** wird live aus den Temperaturen berechnet
 - **Stromverbrauch** wird aus dem Volumenstrom geschätzt (Watt + kWh fürs Energie-Dashboard)
+- **Zurückgewonnene Wärme** wird als Leistung (W) und Energie (kWh) geschätzt
 - **Betriebsstunden** je Lüftungsstufe sowie Fehler-/Hinweis-Diagnose
 - **Stoßlüftung** per Knopfdruck (zeitbegrenzte Intensivlüftung)
 - **Filterwechsel-Warnung** mit einstellbarer Schwelle (Tage) und Buttons zum Quittieren nach dem Filtertausch
@@ -116,6 +117,8 @@ Bei Problemen hilft ein Diagnose-Dump: **Einstellungen → Geräte & Dienste →
 | `maico_kwl_sommermodus_status` | Status des Sommermodus (Text) |
 | `maico_kwl_leistung` | Geschätzte Leistungsaufnahme (W) |
 | `maico_kwl_energie` | Geschätzter Energieverbrauch (kWh, für Energie-Dashboard) |
+| `maico_kwl_wrg_leistung` | Geschätzte zurückgewonnene Wärmeleistung (W) |
+| `maico_kwl_wrg_energie` | Geschätzte zurückgewonnene Wärmeenergie (kWh, Zähler) |
 
 > **Hinweis:** Leistung und Energie sind **Schätzwerte** (keine geeichte Messung). Wie sie berechnet werden, ist im Abschnitt [Stromverbrauch (Schätzung)](#stromverbrauch-schätzung) erklärt.
 
@@ -187,6 +190,16 @@ Der Sensor ist als `total_increasing`-Zähler ausgelegt und damit direkt im **Ho
 ### Wichtige Einordnung
 
 Dies ist eine **Schätzung, keine geeichte Messung**. Der reale Verbrauch weicht ab, weil der SPI-Wert ein genormter Mittelwert ist und der tatsächliche Bedarf u. a. von Kanaldruck, Filterzustand und Betriebspunkt abhängt. Für eine exakte Erfassung wäre eine Strommesssteckdose nötig. Für eine Größenordnung („was kostet die Lüftung ungefähr") ist die Schätzung jedoch gut geeignet.
+
+## Zurückgewonnene Wärme (Schätzung)
+
+Die Sensoren `wrg_leistung` (W) und `wrg_energie` (kWh) zeigen, wie viel Heizwärme die Wärmerückgewinnung der Zuluft mitgibt:
+
+```
+Leistung [W] = 0,34 Wh/(m³·K) × Volumenstrom Zuluft [m³/h] × (T Zuluft − T Außenluft) [K]
+```
+
+Der Faktor 0,34 Wh/(m³·K) ist die Wärmekapazität von Luft. Gezählt wird nur Wärmegewinn: Ist die Zuluft nicht wärmer als die Außenluft (Sommer, offener Bypass), ist die Leistung 0 W. Der Energiesensor summiert die Leistung über die Zeit auf (Trapezregel), übersteht Neustarts und kann als Zähler im Dashboard oder in Auswertungen genutzt werden, zum Beispiel um die eingesparte Heizenergie mit dem Wärmepreis zu multiplizieren. Wie beim Stromverbrauch ist das eine **Schätzung aus Temperaturen und Volumenstrom**, kein Wärmemengenzähler.
 
 ## Erweiterte Parameter (offizielle Maico-Registerliste)
 
@@ -291,6 +304,9 @@ entities:
   volumenstrom: sensor.maico_ws_300_flat_volumenstrom_zuluft
   wrg:          sensor.maico_ws_300_flat_warmeruckgewinnung  # optional
   bypass:       sensor.maico_ws_300_flat_bypass_status       # optional
+  filter:       sensor.maico_ws_300_flat_filterwechsel       # optional: Filter-Restlaufzeit
+  sommer:       switch.maico_ws_300_flat_sommermodus         # optional: Schalter in der Karte
+filter_warn_days: 30     # optional: ab so vielen Resttagen wird die Filteranzeige orange
 rooms:
   zuluft:
     - { name: Schlafzimmer,  icon: "🛏" }
@@ -315,6 +331,15 @@ Mit `show_explanation: true` (im grafischen Editor: **„Erklärungszeile anzeig
 - zusätzlich „· Bypass offen (Firmware)“, wenn der Bypass offen ist (das Gerät steuert ihn selbst)
 
 Standardmäßig ist die Zeile aus.
+
+### Filteranzeige und Sommermodus-Schalter (optional)
+
+Wenn du in der Karte die Entitäten `filter` und/oder `sommer` einträgst (im grafischen Editor: **„Filterwechsel – Restlaufzeit“** und **„Sommermodus-Schalter“**), erscheint unter der Kopfzeile eine kleine Chip-Zeile:
+
+- **Filter: noch 165 Tage** – wird orange, sobald die Restlaufzeit `filter_warn_days` (Standard 30) erreicht, und rot mit „Filter wechseln“ bei 0 Tagen.
+- **☀ Sommermodus an/aus** – ein Tipp schaltet den Sommermodus um.
+
+Ohne diese Einträge ändert sich an der Karte nichts.
 
 ### Erklärungstext (optional)
 
@@ -390,6 +415,19 @@ Temperaturen werden als `int16` mit Faktor 0,1 gelesen.
 
 - Home Assistant 2024.12.0 oder neuer
 - Ein unterstütztes Maico-Gerät (siehe oben) mit aktiviertem Modbus TCP, erreichbar im Netzwerk (bei PushPull über ein LAN-Gateway)
+
+## Entwicklung und Tests
+
+Das Repository enthält automatische Tests. Sie laufen bei jedem Push über GitHub Actions (pytest für die Integration, jsdom für die Karte, dazu hassfest und die HACS-Prüfung). Lokal:
+
+```bash
+pip install -r requirements_test.txt
+pytest
+
+cd tests/js && npm install && node card.test.js
+```
+
+Die Python-Tests starten Home Assistant mit einem simulierten Modbus-Gerät, es wird also keine echte Anlage benötigt.
 
 ## Haftungsausschluss
 

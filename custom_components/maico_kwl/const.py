@@ -117,6 +117,10 @@ SPI_WH_PER_M3 = 0.2
 # Standby-Leistung laut Datenblatt (< 1 W)
 STANDBY_POWER_W = 1.0
 
+# Volumetrische Wärmekapazität von Luft (ρ ≈ 1,2 kg/m³ · cp ≈ 1,005 kJ/kgK ÷ 3,6)
+# in Wh pro m³ und Kelvin – Basis der WRG-Leistungsschätzung.
+AIR_HEAT_CAPACITY_WH_M3K = 0.34
+
 # Entity naming
 ATTR_BETRIEBSART = "betriebsart"
 ATTR_LUEFTUNGSSTUFE = "lueftungsstufe"
