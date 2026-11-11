@@ -48,5 +48,11 @@
       "cannot_connect": "Verbindung zum Gerät fehlgeschlagen",
       "already_configured": "Diese IP-Adresse wird bereits von einem anderen Eintrag verwendet"
     }
+  },
+  "issues": {
+    "filter_due": {
+      "title": "Filterwechsel fällig: {name}",
+      "description": "Die Restlaufzeit des Filters beträgt noch {days} Tag(e) (Warnschwelle: {threshold} Tage). Bitte den Filter wechseln und am Gerät mit dem Button „Filter gewechselt“ quittieren. Dieser Hinweis verschwindet von selbst, sobald die Restlaufzeit wieder über der Schwelle liegt."
+    }
   }
 }

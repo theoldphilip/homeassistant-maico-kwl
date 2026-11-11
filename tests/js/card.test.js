@@ -72,6 +72,30 @@ ok(explain('', null) === 'Sommermodus nicht aktiv', 'leerer Status wirft nicht')
   ok(!html(e3).includes('class="chips"'), 'ohne optionale Entities keine Chips-Zeile');
 }
 
+// v1.6.0: neue Chips
+{
+  const calls = [], infos = [];
+  const st = (v) => ({ state: v, attributes: {} });
+  const base = { ...hass.states, 's.leist': st('26.4'), 's.wrgp': st('702.8'), 'button.stoss': st('unknown'), 'fan.l': st('on'), 's.fehler': st('OK') };
+  const h3 = { states: base, callService: (d, s_, data) => calls.push([d, s_, data]) };
+  const e4 = w.document.createElement('maico-kwl-card');
+  w.document.body.appendChild(e4);
+  e4.addEventListener('hass-more-info', (ev) => infos.push(ev.detail.entityId));
+  e4.setConfig({ name: 'T', entities: { ...ents, leistung: 's.leist', wrg_leistung: 's.wrgp', stoss: 'button.stoss', fan: 'fan.l', fehler: 's.fehler' } });
+  e4.hass = h3;
+  ok(html(e4).includes('⚡ 26 W'), 'Chip Leistung');
+  ok(html(e4).includes('WRG +703 W'), 'Chip WRG-Gewinn');
+  ok(!html(e4).includes('Fehler aktiv'), 'Fehler OK: kein Chip');
+  e4.shadowRoot.getElementById('chip-stoss').click();
+  ok(calls.length === 1 && calls[0][0] === 'button' && calls[0][1] === 'press' && calls[0][2].entity_id === 'button.stoss', 'Stoßlüftung: button.press');
+  e4.shadowRoot.getElementById('chip-fan').click();
+  ok(infos.length === 1 && infos[0] === 'fan.l', 'Lüftung: more-info-Dialog');
+  e4.hass = { ...h3, states: { ...base, 's.fehler': st('Aktiv') } };
+  ok(html(e4).includes('Fehler aktiv') && html(e4).includes('class="chip chip-err"'), 'Fehler aktiv: roter Chip');
+  e4.hass = { ...h3, states: { ...base, 's.fehler': st('unavailable') } };
+  ok(!html(e4).includes('Fehler aktiv'), 'Fehler unavailable: kein Chip');
+}
+
 // Editor
 const ed = w.document.createElement('maico-kwl-card-editor');
 w.document.body.appendChild(ed);
@@ -82,7 +106,8 @@ ed.hass = hass;
 setTimeout(() => {
   const cb = ed.shadowRoot.getElementById('inp-explain');
   ok(!!cb, 'Editor: Checkbox vorhanden');
-  ok(!!ed.shadowRoot.querySelector('[data-ekey="filter"]') && !!ed.shadowRoot.querySelector('[data-ekey="sommer"]'), 'Editor: Picker für Filter und Sommermodus');
+  ok(ed.shadowRoot.querySelectorAll('input[data-feat]').length === 7, 'Editor: 7 Checkboxen für Zusatzanzeigen');
+  ok(!ed.shadowRoot.querySelector('[data-ekey="filter"]'), 'Editor: ohne Aktivierung kein Picker für Zusatzanzeigen');
   ok(cb && cb.checked === false, 'Editor: standardmäßig aus');
   cb.checked = true; cb.dispatchEvent(new w.Event('change'));
   ok(last && last.show_explanation === true, 'Editor: Schalter setzt show_explanation=true');
@@ -92,7 +117,55 @@ setTimeout(() => {
   ed2.setConfig({ name: 'T', entities: ents, show_explanation: true });
   setTimeout(() => {
     ok(ed2.shadowRoot.getElementById('inp-explain').checked === true, 'Editor: gespeicherter Wert wird angezeigt');
-    console.log(fails ? `\n${fails} FEHLER` : '\nALLE JS-TESTS OK');
-    process.exit(fails ? 1 : 0);
+    // v1.6.0: Editor findet Entitäten über das Entity-Register
+    const reg = [
+      { entity_id: 'sensor.htr_x_sommermodus_status', platform: 'maico_kwl', unique_id: 'maico_kwl_sommermodus_status', device_id: 'D1' },
+      { entity_id: 'switch.htr_x_sommermodus', platform: 'maico_kwl', unique_id: 'maico_kwl_sommermodus', device_id: 'D1' },
+      { entity_id: 'sensor.x_filterwechsel', platform: 'maico_kwl', unique_id: 'maico_kwl_filter_restlaufzeit_zuluft', device_id: 'D1' },
+      { entity_id: 'sensor.x_leistung', platform: 'maico_kwl', unique_id: 'maico_kwl_leistung', device_id: 'D1' },
+      { entity_id: 'sensor.x_wrg_leistung', platform: 'maico_kwl', unique_id: 'maico_kwl_wrg_leistung', device_id: 'D1' },
+      // zweites Gerät (neues ID-Schema mit Entry-ID) darf nicht verwechselt werden
+      { entity_id: 'switch.zweit_sommermodus', platform: 'maico_kwl', unique_id: 'maico_kwl_01ARZ3NDEKTSV4RRFFQ69G5FAV_sommermodus', device_id: 'D2' },
+      { entity_id: 'sensor.fremd_leistung', platform: 'andere', unique_id: 'maico_kwl_leistung', device_id: 'D1' },
+    ];
+    let wsCalls = 0;
+    const hassWs = { ...hass, callWS: async (msg) => { wsCalls++; return msg.type === 'config/entity_registry/list' ? reg : null; } };
+    const e5 = w.document.createElement('maico-kwl-card-editor');
+    w.document.body.appendChild(e5);
+    let cfg5 = null;
+    e5.addEventListener('config-changed', (ev) => { cfg5 = ev.detail.config; });
+    e5.setConfig({ name: 'T', entities: { ...ents, status: 'sensor.htr_x_sommermodus_status' } });
+    e5.hass = hassWs;
+    setTimeout(async () => {
+      const box = (k) => e5.shadowRoot.querySelector(`input[data-feat="${k}"]`);
+      box('sommer').checked = true; box('sommer').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(cfg5 && cfg5.entities.sommer === 'switch.htr_x_sommermodus', 'Auto-Erkennung: Sommermodus-Schalter des richtigen Geräts');
+      box('leistung').checked = true; box('leistung').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(cfg5.entities.leistung === 'sensor.x_leistung', 'Auto-Erkennung: Leistung (nicht WRG-Leistung, nicht fremde Integration)');
+      box('wrg_leistung').checked = true; box('wrg_leistung').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(cfg5.entities.wrg_leistung === 'sensor.x_wrg_leistung', 'Auto-Erkennung: WRG-Leistung');
+      ok(wsCalls === 1, 'Entity-Register wird nur einmal geladen');
+      ok(cfg5.entities.status === 'sensor.htr_x_sommermodus_status' && cfg5.name === 'T', 'übrige Config bleibt erhalten');
+      ok(!!e5.shadowRoot.querySelector('ha-entity-picker[data-ekey="sommer"]'), 'aktivierte Zusatzanzeige zeigt Picker zum Überschreiben');
+      // nicht gefunden -> Hinweis + leerer Picker
+      box('fehler').checked = true; box('fehler').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(e5.shadowRoot.innerHTML.includes('Nicht automatisch gefunden'), 'Nicht gefunden: Hinweis');
+      // abwählen entfernt den Eintrag
+      box('sommer').checked = false; box('sommer').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(cfg5 && !('sommer' in cfg5.entities), 'Abwählen entfernt die Entität aus der Config');
+      // bestehende Config (aus 1.9.0) zeigt Haken
+      const e6 = w.document.createElement('maico-kwl-card-editor');
+      w.document.body.appendChild(e6);
+      e6.setConfig({ name: 'T', entities: { ...ents, filter: 'sensor.x_filterwechsel', sommer: 'switch.htr_x_sommermodus' } });
+      ok(e6.shadowRoot.querySelector('input[data-feat="filter"]').checked && e6.shadowRoot.querySelector('input[data-feat="sommer"]').checked, 'vorhandene Einträge: Haken gesetzt');
+      ok(!e6.shadowRoot.querySelector('input[data-feat="leistung"]').checked, 'nicht vorhandene: kein Haken');
+      console.log(fails ? `\n${fails} FEHLER` : '\nALLE JS-TESTS OK');
+      process.exit(fails ? 1 : 0);
+    }, 80);
   }, 50);
 }, 50);

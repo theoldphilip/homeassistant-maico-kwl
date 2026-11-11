@@ -6,11 +6,14 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     CONF_CARD_AUTOLOAD,
+    CONF_FILTER_WARNING_DAYS,
     CONF_SCAN_INTERVAL,
     DOMAIN,
+    FILTER_WARNING_DAYS,
     entry_config,
 )
 from .coordinator import MaicoKWLCoordinator
@@ -108,7 +111,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Mitgelieferte Lovelace-Karte automatisch bereitstellen (Option je Eintrag;
     # aktiv, sobald mindestens ein Eintrag sie wünscht).
     await _async_update_card_registration(hass)
-    
+
+    # Reparaturhinweis, solange der Filter fällig ist (unter Einstellungen → Reparaturen).
+    _update_filter_issue(hass, entry, coordinator)
+    entry.async_on_unload(
+        coordinator.async_add_listener(
+            lambda: _update_filter_issue(hass, entry, coordinator)
+        )
+    )
+
     entry.async_on_unload(entry.add_update_listener(update_listener))
     
     return True
@@ -121,11 +132,50 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     
     if unload_ok:
+        ir.async_delete_issue(hass, DOMAIN, _filter_issue_id(entry))
         coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
         await coordinator.async_shutdown()
         hass.data[DOMAIN].pop(entry.entry_id)
     
     return unload_ok
+
+
+def _filter_issue_id(entry: ConfigEntry) -> str:
+    return f"filter_due_{entry.entry_id}"
+
+
+def _update_filter_issue(
+    hass: HomeAssistant, entry: ConfigEntry, coordinator: MaicoKWLCoordinator
+) -> None:
+    """Reparaturhinweis anlegen, solange die Filter-Restlaufzeit die Schwelle erreicht hat.
+
+    Die Schwelle ist dieselbe wie beim Binary-Sensor „Filterwechsel notwendig“
+    (Option „Filterschwelle“). Der Hinweis verschwindet von selbst, sobald die
+    Restlaufzeit wieder darüber liegt (nach dem Filterwechsel).
+    """
+    issue_id = _filter_issue_id(entry)
+    days = (coordinator.data or {}).get("filter_restlaufzeit_zuluft")
+    if not isinstance(days, int) or isinstance(days, bool):
+        return  # keine Daten (oder Gerät ohne dieses Register): nichts ändern
+    threshold = int(
+        entry_config(entry).get(CONF_FILTER_WARNING_DAYS, FILTER_WARNING_DAYS)
+    )
+    if days <= threshold:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="filter_due",
+            translation_placeholders={
+                "name": entry.title,
+                "days": str(days),
+                "threshold": str(threshold),
+            },
+        )
+    else:
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
 
 
 async def _async_update_card_registration(hass: HomeAssistant) -> None:

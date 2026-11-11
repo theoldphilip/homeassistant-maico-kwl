@@ -48,5 +48,11 @@
       "cannot_connect": "Failed to connect to the device",
       "already_configured": "This IP address is already used by another entry"
     }
+  },
+  "issues": {
+    "filter_due": {
+      "title": "Filter change due: {name}",
+      "description": "The remaining filter life is {days} day(s) (warning threshold: {threshold} days). Replace the filter and confirm it with the \"Filter changed\" button of the device. This notice disappears automatically once the remaining time is above the threshold again."
+    }
   }
 }

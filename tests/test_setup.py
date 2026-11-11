@@ -215,3 +215,48 @@ async def test_wrg_sensors_power_and_energy(hass):
         coord.async_set_updated_data({**coord.data})
         await hass.async_block_till_done()
     assert float(hass.states.get(e_id).state) == before
+
+
+async def test_filter_repair_issue_lifecycle(hass):
+    """Reparaturhinweis erscheint bei fälligem Filter und verschwindet nach dem Wechsel."""
+    from homeassistant.helpers import issue_registry as ir
+    # Restlaufzeit 165 Tage, Schwelle 7 -> kein Hinweis
+    e = await setup(hass)
+    issue_id = f"filter_due_{e.entry_id}"
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+    coord = hass.data[DOMAIN][e.entry_id]["coordinator"]
+
+    # Restlaufzeit fällt auf die Schwelle -> Hinweis mit Platzhaltern
+    coord.async_set_updated_data({**coord.data, "filter_restlaufzeit_zuluft": 7})
+    await hass.async_block_till_done()
+    issue = ir.async_get(hass).async_get_issue(DOMAIN, issue_id)
+    assert issue is not None
+    assert issue.translation_key == "filter_due"
+    assert issue.translation_placeholders["days"] == "7"
+    assert issue.translation_placeholders["threshold"] == "7"
+    assert issue.is_fixable is False
+
+    # Filter gewechselt (Restlaufzeit wieder hoch) -> Hinweis verschwindet
+    coord.async_set_updated_data({**coord.data, "filter_restlaufzeit_zuluft": 180})
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+    # Fehlende Daten ändern nichts
+    coord.async_set_updated_data({**coord.data, "filter_restlaufzeit_zuluft": 3})
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+    data = dict(coord.data); data.pop("filter_restlaufzeit_zuluft")
+    coord.async_set_updated_data(data)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is not None
+
+    # Entladen räumt den Hinweis auf
+    assert await hass.config_entries.async_unload(e.entry_id)
+    await hass.async_block_till_done()
+    assert ir.async_get(hass).async_get_issue(DOMAIN, issue_id) is None
+
+
+async def test_filter_issue_already_due_at_startup(hass):
+    from homeassistant.helpers import issue_registry as ir
+    e = await setup(hass, filter_warning_days=200)   # Restlaufzeit 165 <= 200
+    assert ir.async_get(hass).async_get_issue(DOMAIN, f"filter_due_{e.entry_id}") is not None

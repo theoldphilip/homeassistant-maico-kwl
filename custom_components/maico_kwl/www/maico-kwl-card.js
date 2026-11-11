@@ -24,6 +24,11 @@
  *     wrg:        sensor.maico_ws_300_flat_warmeruckgewinnung   # optional
  *     filter:     sensor.maico_ws_300_flat_filterwechsel        # optional: Filter-Restlaufzeit
  *     sommer:     switch.maico_ws_300_flat_sommermodus          # optional: Schalter in der Karte
+ *     leistung:     sensor.maico_ws_300_flat_leistung_geschatzt   # optional: Stromleistung (W)
+ *     wrg_leistung: sensor.maico_ws_300_flat_warmeruckgewinnung_leistung_geschatzt  # optional
+ *     stoss:      button.maico_ws_300_flat_stosslueftung        # optional: Stoßlüftung auslösen
+ *     fan:        fan.maico_ws_300_flat_lueftung                # optional: öffnet die Lüftungssteuerung
+ *     fehler:     sensor.maico_ws_300_flat_fehler               # optional: Fehleranzeige (nur bei Fehler)
  *   filter_warn_days: 30    # optional: ab wie vielen Resttagen der Filter orange wird
  *   rooms:
  *     zuluft:
@@ -502,6 +507,22 @@ class MaicoKwlCard extends HTMLElement {
       chips.push(`<div class="chip ${cls}">🧰 ${txt}</div>`);
     }
 
+    const leistung = ent.leistung ? this._num(ent.leistung) : null;
+    if (leistung !== null) chips.push(`<div class="chip">⚡ ${Math.round(leistung)} W</div>`);
+    const wrgP = ent.wrg_leistung ? this._num(ent.wrg_leistung) : null;
+    if (wrgP !== null) chips.push(`<div class="chip">🔥 WRG +${Math.round(wrgP)} W</div>`);
+    const known = (id) => id && this._hass && this._hass.states[id];
+    if (known(ent.stoss)) {
+      chips.push(`<button class="chip chip-btn" id="chip-stoss" title="Stoßlüftung starten">💨 Stoßlüftung</button>`);
+    }
+    if (known(ent.fan)) {
+      chips.push(`<button class="chip chip-btn" id="chip-fan" title="Lüftungsstufe ändern">🌀 Lüftung</button>`);
+    }
+    const fehlerState = ent.fehler ? this._state(ent.fehler) : null;
+    if (fehlerState !== null && fehlerState !== 'OK') {
+      chips.push(`<div class="chip chip-err">⚠ Fehler aktiv</div>`);
+    }
+
     /* Status-Chip */
     const cooling     = status.includes('Kühlt');
     const statusLabel = cooling           ? 'Kühlt'
@@ -655,6 +676,20 @@ ${this._css(dark)}
         this._hass.callService(domain, 'toggle', { entity_id: id });
       });
     }
+    const stossBtn = this._shadow.getElementById('chip-stoss');
+    if (stossBtn) {
+      stossBtn.addEventListener('click', () => {
+        this._hass.callService('button', 'press', { entity_id: ent.stoss });
+      });
+    }
+    const fanBtn = this._shadow.getElementById('chip-fan');
+    if (fanBtn) {
+      fanBtn.addEventListener('click', () => {
+        this.dispatchEvent(new CustomEvent('hass-more-info', {
+          bubbles: true, composed: true, detail: { entityId: ent.fan },
+        }));
+      });
+    }
   }
 }
 
@@ -666,11 +701,38 @@ class MaicoKwlCardEditor extends HTMLElement {
     this._shadow = this.attachShadow({ mode: 'open' });
     this._config = {};
     this._hass   = null;
+    this._missing = {};
   }
 
   setConfig(config) {
     this._config = JSON.parse(JSON.stringify(config));
     this._render();
+  }
+
+  /** Entity-Register (nur im Editor, Admin) – einmal laden */
+  async _registry() {
+    if (!this._reg) this._reg = await this._hass.callWS({ type: 'config/entity_registry/list' });
+    return this._reg;
+  }
+
+  /** Findet die Entität einer Zusatzanzeige: gleiche Integration, gleiches Gerät wie die Sensoren der Karte */
+  async _resolveFeature(uid) {
+    if (!this._hass || !this._hass.callWS) return null;
+    let reg;
+    try { reg = await this._registry(); } catch (e) { return null; }
+    const ent = this._config.entities || {};
+    const anchorId = ['status', 'stufe', 'aussenluft', 'zuluft', 'abluft', 'fortluft']
+      .map((k) => ent[k]).find(Boolean);
+    const anchor = reg.find((e) => e.entity_id === anchorId);
+    const dev = anchor ? anchor.device_id : null;
+    const keyOf = (e) => {
+      const m = /^maico_kwl_(?:[0-9a-z]{26}_)?(.+)$/i.exec(e.unique_id || '');
+      return m ? m[1] : null;
+    };
+    const cands = reg.filter((e) => e.platform === 'maico_kwl' && keyOf(e) === uid && !e.disabled_by);
+    const same  = cands.filter((e) => dev && e.device_id === dev);
+    const pick  = (same.length ? same : cands)[0];
+    return pick ? pick.entity_id : null;
   }
 
   set hass(hass) {
@@ -713,9 +775,10 @@ class MaicoKwlCardEditor extends HTMLElement {
       { key: 'wrg',          label: 'Wärmerückgewinnung (optional)', req: false },
       { key: 'bypass',       label: 'Bypass Status (optional)',       req: false },
       { key: 'feuchte',      label: 'Luftfeuchte (optional)',         req: false },
-      { key: 'filter',       label: 'Filterwechsel – Restlaufzeit (optional)', req: false },
-      { key: 'sommer',       label: 'Sommermodus-Schalter (optional)', req: false },
     ];
+
+    /* Zusatzanzeigen: Checkbox, die Entität wird automatisch gefunden (uid = Schlüssel der Integration) */
+    const features = MaicoKwlCardEditor.FEATURES;
 
     const roomRows = (group, list) => list.map((r, i) => `
       <div class="rr">
@@ -828,6 +891,25 @@ class MaicoKwlCardEditor extends HTMLElement {
       </div>`).join('')}
   </div>
 
+  <!-- Zusatzanzeigen -->
+  <div class="sec">
+    <p class="sec-title">Zusatzanzeigen</p>
+    <p class="hint">Kleine Schaltflächen und Werte unter der Kopfzeile. Die passende Entität wird automatisch gefunden.</p>
+    ${features.map(f => {
+      const on = Object.prototype.hasOwnProperty.call(ent, f.key);
+      return `
+      <div class="field" style="margin-top:10px">
+        <label class="chk">
+          <input type="checkbox" data-feat="${f.key}" ${on ? 'checked' : ''}>
+          ${f.label}
+        </label>
+        ${on ? `<ha-entity-picker data-ekey="${f.key}" value="${ent[f.key] || ''}" allow-custom-entity></ha-entity-picker>` : ''}
+        ${on && !ent[f.key] && this._missing[f.key]
+          ? '<p class="hint">Nicht automatisch gefunden – bitte die Entität auswählen.</p>' : ''}
+      </div>`;
+    }).join('')}
+  </div>
+
   <!-- Zuluft-Räume -->
   <div class="sec">
     <p class="sec-title">Zuluft-Räume</p>
@@ -873,6 +955,36 @@ class MaicoKwlCardEditor extends HTMLElement {
       this._shadow.getElementById('inp-explain')?.addEventListener('change', (ev) => {
         this._config = { ...this._config, show_explanation: ev.target.checked };
         this._fire();
+      });
+
+      /* Zusatzanzeigen ein/aus (mit automatischer Entitäten-Suche) */
+      this._shadow.querySelectorAll('input[data-feat]').forEach(box => {
+        box.addEventListener('change', async (ev) => {
+          const key = ev.target.dataset.feat;
+          const feat = MaicoKwlCardEditor.FEATURES.find(f => f.key === key);
+          const entities = { ...(this._config.entities || {}) };
+          if (!ev.target.checked) {
+            delete entities[key];
+            delete this._missing[key];
+            this._config = { ...this._config, entities };
+            this._render();
+            if (this._hass) this.hass = this._hass;
+            this._fire();
+            return;
+          }
+          entities[key] = '';
+          this._config = { ...this._config, entities };
+          const id = await this._resolveFeature(feat.uid);
+          if (id) {
+            delete this._missing[key];
+            this._config = { ...this._config, entities: { ...this._config.entities, [key]: id } };
+          } else {
+            this._missing[key] = true;
+          }
+          this._render();
+          if (this._hass) this.hass = this._hass;
+          this._fire();
+        });
       });
 
       /* Raum-Felder (icon / name) */
@@ -924,6 +1036,16 @@ class MaicoKwlCardEditor extends HTMLElement {
   }
 }
 
+MaicoKwlCardEditor.FEATURES = [
+  { key: 'filter',       uid: 'filter_restlaufzeit_zuluft', label: 'Filteranzeige (Restlaufzeit)' },
+  { key: 'sommer',       uid: 'sommermodus',                label: 'Sommermodus-Schalter' },
+  { key: 'leistung',     uid: 'leistung',                   label: 'Stromleistung (geschätzt)' },
+  { key: 'wrg_leistung', uid: 'wrg_leistung',               label: 'Wärmegewinn der Wärmerückgewinnung' },
+  { key: 'stoss',        uid: 'stosslueftung',              label: 'Knopf „Stoßlüftung“' },
+  { key: 'fan',          uid: 'lueftung',                   label: 'Knopf „Lüftung“ (Stufen ändern)' },
+  { key: 'fehler',       uid: 'fehler',                     label: 'Fehleranzeige (nur bei Fehler)' },
+];
+
 /* ── Registrierung ── */
 if (!customElements.get('maico-kwl-card')) {
   customElements.define('maico-kwl-card', MaicoKwlCard);
@@ -942,7 +1064,7 @@ if (!customElements.get('maico-kwl-card-editor')) {
 }
 
 console.info(
-  '%c MAICO-KWL-CARD %c v1.5.0 ',
+  '%c MAICO-KWL-CARD %c v1.6.0 ',
   'background:#1A74AF;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px;font-weight:bold',
   'background:#157A5A;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0'
 );

@@ -128,6 +128,8 @@ Bei Problemen hilft ein Diagnose-Dump: **Einstellungen → Geräte & Dienste →
 |---|---|
 | `binary_sensor.maico_kwl_filter_restlaufzeit_zuluft_alert` | Wird aktiv, wenn die Filter-Restlaufzeit die Schwelle unterschreitet |
 
+Zusätzlich erscheint unter **Einstellungen → System → Reparaturen** der Hinweis „Filterwechsel fällig“, solange die Restlaufzeit die Schwelle erreicht hat (Option „Filterwechsel-Warnung“, Standard 7 Tage). Er verschwindet von selbst, sobald die Restlaufzeit nach dem Wechsel wieder darüber liegt. Nach dem Tausch den Button „Filter gewechselt“ drücken.
+
 ## Sommermodus (Nachtkühlung)
 
 Ist der Schalter `switch.maico_kwl_sommermodus` aktiv, regelt die Integration die Anlage temperaturabhängig:
@@ -304,8 +306,14 @@ entities:
   volumenstrom: sensor.maico_ws_300_flat_volumenstrom_zuluft
   wrg:          sensor.maico_ws_300_flat_warmeruckgewinnung  # optional
   bypass:       sensor.maico_ws_300_flat_bypass_status       # optional
-  filter:       sensor.maico_ws_300_flat_filterwechsel       # optional: Filter-Restlaufzeit
-  sommer:       switch.maico_ws_300_flat_sommermodus         # optional: Schalter in der Karte
+  # Zusatzanzeigen (alle optional, im grafischen Editor per Checkbox):
+  filter:       sensor.maico_ws_300_flat_filterwechsel       # Filter-Restlaufzeit
+  sommer:       switch.maico_ws_300_flat_sommermodus         # Sommermodus-Schalter
+  leistung:     sensor.maico_ws_300_flat_leistung_geschatzt  # Stromleistung (W)
+  wrg_leistung: sensor.maico_ws_300_flat_warmeruckgewinnung_leistung_geschatzt
+  stoss:        button.maico_ws_300_flat_stosslueftung       # Stoßlüftung auslösen
+  fan:          fan.maico_ws_300_flat_lueftung               # öffnet die Lüftungssteuerung
+  fehler:       sensor.maico_ws_300_flat_fehler              # Anzeige nur bei Fehler
 filter_warn_days: 30     # optional: ab so vielen Resttagen wird die Filteranzeige orange
 rooms:
   zuluft:
@@ -332,14 +340,21 @@ Mit `show_explanation: true` (im grafischen Editor: **„Erklärungszeile anzeig
 
 Standardmäßig ist die Zeile aus.
 
-### Filteranzeige und Sommermodus-Schalter (optional)
+### Zusatzanzeigen (optional)
 
-Wenn du in der Karte die Entitäten `filter` und/oder `sommer` einträgst (im grafischen Editor: **„Filterwechsel – Restlaufzeit“** und **„Sommermodus-Schalter“**), erscheint unter der Kopfzeile eine kleine Chip-Zeile:
+Im grafischen Editor gibt es den Abschnitt **Zusatzanzeigen** mit je einer Checkbox. Beim Anhaken sucht der Editor die passende Entität deiner Maico-Integration selbst (gleiches Gerät wie die Sensoren der Karte) und trägt sie ein; bei Bedarf kannst du sie im darunter erscheinenden Auswahlfeld ändern. Unter der Kopfzeile erscheint dann eine kleine Chip-Zeile:
 
-- **Filter: noch 165 Tage** – wird orange, sobald die Restlaufzeit `filter_warn_days` (Standard 30) erreicht, und rot mit „Filter wechseln“ bei 0 Tagen.
-- **☀ Sommermodus an/aus** – ein Tipp schaltet den Sommermodus um.
+| Checkbox | Anzeige |
+|---|---|
+| Filteranzeige | **Filter: noch 165 Tage** – orange ab `filter_warn_days` (Standard 30), rot mit „Filter wechseln“ bei 0 Tagen |
+| Sommermodus-Schalter | **☀ Sommermodus an/aus** – ein Tipp schaltet um |
+| Stromleistung | **⚡ 26 W** (geschätzte Leistungsaufnahme) |
+| Wärmegewinn der WRG | **🔥 WRG +703 W** (siehe [Zurückgewonnene Wärme](#zurückgewonnene-wärme-schätzung)) |
+| Knopf „Stoßlüftung“ | **💨 Stoßlüftung** – löst die Stoßlüftung aus |
+| Knopf „Lüftung“ | **🌀 Lüftung** – öffnet die Steuerung, in der du die Lüftungsstufe ändern kannst |
+| Fehleranzeige | **⚠ Fehler aktiv** – nur sichtbar, wenn das Gerät einen Fehler meldet |
 
-Ohne diese Einträge ändert sich an der Karte nichts.
+Die automatische Suche braucht Administratorrechte (der Editor ist ohnehin nur für Administratoren). Findet sie eine Entität nicht, erscheint ein Hinweis und du wählst sie von Hand aus. Ohne angehakte Zusatzanzeigen ändert sich an der Karte nichts.
 
 ### Erklärungstext (optional)
 
