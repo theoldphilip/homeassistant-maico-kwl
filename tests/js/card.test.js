@@ -187,9 +187,7 @@ const header = (e) => (html(e).match(/class="status-chip[^"]*">(?:<svg.*?<\/svg>
 {
   const ve = { fan: 'fan.l', vol_reduziert: 'n.r', vol_nenn: 'n.n', vol_intensiv: 'n.i' };
   const vs = { 'fan.l': st('on'), 'n.r': st('100'), 'n.n': st('150'), 'n.i': st('200'), 's.stufe': st('Reduziert') };
-  const infos = [];
   const e = mkc(ve, vs);
-  e.addEventListener('hass-more-info', (ev) => infos.push(ev.detail.entityId));
   let sheet = q(e, '#sheet-stufe');
   const opts = [...sheet.querySelectorAll('[data-pct]')];
   ok(opts.length === 4 && opts.map((o) => o.dataset.pct).join() === '25,50,75,100', 'Stufenmenü: vier Stufen (25/50/75/100 %)');
@@ -209,9 +207,22 @@ const header = (e) => (html(e).match(/class="status-chip[^"]*">(?:<svg.*?<\/svg>
   q(e, '#sheet-stufe [data-pct="75"]').click();
   ok(calls.length === 1 && calls[0][0] === 'fan' && calls[0][1] === 'set_percentage' && calls[0][2].entity_id === 'fan.l' && calls[0][2].percentage === 75, 'Nennlüftung: fan.set_percentage 75');
   ok(e._sheet === null && q(e, '#sheet-stufe [data-pct="75"]').classList.contains('opt-on'), 'nach Auswahl: zu, nachgeholtes Neuzeichnen zeigt neue Stufe');
+  // Betriebsart
+  const modes = [...q(e, '#sheet-stufe').querySelectorAll('[data-mode]')];
+  ok(modes.map((m) => m.dataset.mode).join() === 'Manuell,Auto Sensor,Eco-Zuluft,Eco-Abluft', 'Betriebsart: vier Modi, ohne Auto Zeit und Aus');
+  ok(!q(e, '#btn-fan-more'), 'Link „Weitere Einstellungen“ entfällt');
   q(e, '#btn-stufe').click();
-  q(e, '#btn-fan-more').click();
-  ok(infos.length === 1 && infos[0] === 'fan.l' && e._sheet === null, '„Weitere Einstellungen“: more-info-Dialog');
+  calls.length = 0;
+  q(e, '#sheet-stufe [data-mode="Auto Sensor"]').click();
+  ok(calls.length === 1 && calls[0][0] === 'fan' && calls[0][1] === 'set_preset_mode' && calls[0][2].entity_id === 'fan.l' && calls[0][2].preset_mode === 'Auto Sensor' && e._sheet === null, 'Betriebsart wählen: fan.set_preset_mode');
+  ok(!modes.some((m) => m.classList.contains('mode-on')), 'ohne betriebsart-Entity und Preset: keine Markierung');
+  // aktuelle Betriebsart: Sensor hat Vorrang, sonst Preset des fan
+  const eM = mkc({ ...ve, betriebsart: 's.mode' }, { ...vs, 's.mode': st('Eco-Zuluft') });
+  ok(q(eM, '#sheet-stufe [data-mode="Eco-Zuluft"]').classList.contains('mode-on') && eM.shadowRoot.querySelectorAll('.mode-on').length === 1, 'Betriebsart: aktive aus Sensor markiert');
+  const eP = mkc(ve, { ...vs, 'fan.l': { state: 'on', attributes: { preset_mode: 'Manuell' } } });
+  ok(q(eP, '#sheet-stufe [data-mode="Manuell"]').classList.contains('mode-on'), 'Betriebsart: Fallback auf Preset des Lüftungs-Entity');
+  upd(eP, { 'fan.l': { state: 'on', attributes: { preset_mode: 'Auto Sensor' } } });
+  ok(q(eP, '#sheet-stufe [data-mode="Auto Sensor"]').classList.contains('mode-on'), 'Preset-Wechsel zeichnet neu (Signatur)');
   // Rand-Tipp schließt
   q(e, '#btn-stufe').click();
   q(e, '#sheet-stufe').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
@@ -256,6 +267,7 @@ setTimeout(() => {
       { entity_id: 'number.x_vol_red', platform: 'maico_kwl', unique_id: 'maico_kwl_volumenstrom_reduziert', device_id: 'D1' },
       { entity_id: 'number.x_vol_nenn', platform: 'maico_kwl', unique_id: 'maico_kwl_volumenstrom_nennlueftung', device_id: 'D1' },
       { entity_id: 'number.x_vol_int', platform: 'maico_kwl', unique_id: 'maico_kwl_volumenstrom_intensiv', device_id: 'D1' },
+      { entity_id: 'sensor.x_betriebsart', platform: 'maico_kwl', unique_id: 'maico_kwl_betriebsart', device_id: 'D1' },
       { entity_id: 'button.x_fg', platform: 'maico_kwl', unique_id: 'maico_kwl_filterwechsel_geraet', device_id: 'D1' },
       { entity_id: 'button.x_fr', platform: 'maico_kwl', unique_id: 'maico_kwl_filterwechsel_raum', device_id: 'D1' },
       // zweites Gerät (neues ID-Schema mit Entry-ID) darf nicht verwechselt werden
@@ -289,7 +301,7 @@ setTimeout(() => {
       ok(!('stoss' in cfg5.entities) && !('stoss_rest' in cfg5.entities), 'Abwählen entfernt Stoßlüftung und Restzeit');
       box('fan').checked = true; box('fan').dispatchEvent(new w.Event('change'));
       await new Promise(r => setTimeout(r, 30));
-      ok(cfg5.entities.fan === 'fan.x_lueftung' && cfg5.entities.vol_reduziert === 'number.x_vol_red' && cfg5.entities.vol_nenn === 'number.x_vol_nenn' && cfg5.entities.vol_intensiv === 'number.x_vol_int', 'Auto-Erkennung: Stufen-Knopf inkl. m³/h-Einstellungen');
+      ok(cfg5.entities.fan === 'fan.x_lueftung' && cfg5.entities.vol_reduziert === 'number.x_vol_red' && cfg5.entities.vol_nenn === 'number.x_vol_nenn' && cfg5.entities.vol_intensiv === 'number.x_vol_int' && cfg5.entities.betriebsart === 'sensor.x_betriebsart', 'Auto-Erkennung: Stufen-Knopf inkl. m³/h-Einstellungen und Betriebsart');
       box('filter').checked = true; box('filter').dispatchEvent(new w.Event('change'));
       await new Promise(r => setTimeout(r, 30));
       ok(cfg5.entities.filter === 'sensor.x_filterwechsel' && cfg5.entities.filter_geraet === 'button.x_fg' && cfg5.entities.filter_raum === 'button.x_fr' && !('filter_aussen' in cfg5.entities), 'Auto-Erkennung: Filter inkl. vorhandener Quittier-Knöpfe (fehlende werden ausgelassen)');

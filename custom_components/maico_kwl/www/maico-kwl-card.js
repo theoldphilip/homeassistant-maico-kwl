@@ -42,6 +42,7 @@
  *     vol_reduziert: number.maico_ws_300_flat_volumenstrom_reduziert  # m³/h im Stufenmenü
  *     vol_nenn:      number.maico_ws_300_flat_volumenstrom_nennlueftung
  *     vol_intensiv:  number.maico_ws_300_flat_volumenstrom_intensiv
+ *     betriebsart:   sensor.maico_ws_300_flat_betriebsart     # aktive Betriebsart im Stufenmenü
  *     # Fehler: Hinweis nur bei Fehler, Knopf zum Quittieren
  *     fehler:       sensor.maico_ws_300_flat_fehler
  *     fehler_reset: button.maico_ws_300_flat_fehler_quittieren
@@ -83,6 +84,9 @@ const KWL_STAGES = [
   { id: 'nenn',      label: 'Nennlüftung', match: 'nenn',    pct: 75,  vol: 'vol_nenn' },
   { id: 'intensiv',  label: 'Intensiv',    match: 'intensiv', pct: 100, vol: 'vol_intensiv' },
 ];
+
+/* Wählbare Betriebsarten (Auto Zeit bewusst nicht dabei; Name = Preset des Lüftungs-Entity) */
+const KWL_MODES = ['Manuell', 'Auto Sensor', 'Eco-Zuluft', 'Eco-Abluft'];
 
 /* Filter, die quittiert werden können (Schlüssel in entities → Anzeigename) */
 const KWL_FILTER_BUTTONS = [
@@ -143,10 +147,11 @@ class MaicoKwlCard extends HTMLElement {
     /* Nur neu zeichnen, wenn sich ein verwendeter Zustand geändert hat –
        sonst gehen Klicks auf die Schalter beim ständigen Neuaufbau verloren. */
     const ids = Object.values((this._config && this._config.entities) || {});
+    const fanSt = this._config && this._config.entities && hass.states[this._config.entities.fan];
     const sig = JSON.stringify([this._dark, ids.map((id) => {
       const st = hass.states[id];
       return st ? st.state : null;
-    })]);
+    }), fanSt && fanSt.attributes ? fanSt.attributes.preset_mode : null]);
     if (sig === this._sig) return;
     this._sig = sig;
     this._render();
@@ -415,6 +420,7 @@ class MaicoKwlCard extends HTMLElement {
     border: 0; padding: 0; margin: auto auto 0; width: 100%; max-width: 480px; box-sizing: border-box;
     background: var(--card-background-color, #1b1d20); color: var(--primary-text-color);
     border-radius: 20px 20px 0 0; border-top: 1px solid var(--kwl-line);
+    max-height: 92vh; overflow-y: auto;
     animation: sheet-up .18s ease-out;
   }
   dialog.sheet::backdrop { background: rgba(0,0,0,.62); }
@@ -443,6 +449,13 @@ class MaicoKwlCard extends HTMLElement {
   }
   .sbtn-primary { background: var(--primary-color, #52C2F0); border-color: var(--primary-color, #52C2F0); color: var(--text-primary-color, #0b1a22); font-weight: 600; }
   .sbtn[disabled] { opacity: .45; cursor: default; }
+  .sheet-sec { font-size: 11px; font-weight: 500; letter-spacing: .10em; text-transform: uppercase; color: var(--secondary-text-color); margin-top: 4px; }
+  .modes { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mode {
+    min-height: 44px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--kwl-line);
+    background: var(--kwl-tile); cursor: pointer; font-size: 14px; font-weight: 500;
+  }
+  .mode-on { background: var(--kwl-hi-bg); border-color: var(--kwl-hi-bdr); color: var(--kwl-hi); font-weight: 600; }
   .link-btn { align-self: center; background: none; border: 0; padding: 6px 8px; font-size: 12px; color: var(--primary-color); cursor: pointer; }
 
   @media (prefers-reduced-motion: reduce) {
@@ -593,6 +606,10 @@ class MaicoKwlCard extends HTMLElement {
         <span class="o-txt"><span>${s.label}</span>${v !== null ? `<span class="o-sub">${Math.round(v)} m³/h</span>` : ''}</span>
         ${on ? kwlIcon('check') : ''}</button>`;
     }).join('');
+    const modeNow = (ent.betriebsart ? this._state(ent.betriebsart) : null) ||
+      (fanKnown && this._hass.states[ent.fan].attributes ? this._hass.states[ent.fan].attributes.preset_mode : null);
+    const modeOpts = KWL_MODES.map((m) =>
+      `<button type="button" class="mode ${modeNow === m ? 'mode-on' : ''}" data-mode="${kwlEsc(m)}">${kwlEsc(m)}</button>`).join('');
     const stufeSheet = fanKnown ? `
   <dialog class="sheet" id="sheet-stufe" aria-label="Lüftungsstufe wählen">
     <div class="sheet-in" tabindex="-1" autofocus>
@@ -600,7 +617,9 @@ class MaicoKwlCard extends HTMLElement {
       <div class="sheet-hd"><span class="sheet-title">Lüftungsstufe</span><span class="sheet-sub">${name}</span></div>
       <div class="opts">${stageOpts}</div>
       <p class="sheet-note">Die Stufe bleibt, bis du sie wieder änderst. Für eine zeitlich begrenzte Intensivlüftung nimm die Stoßlüftung.</p>
-      <button type="button" class="link-btn" id="btn-fan-more">Weitere Einstellungen (Betriebsart) …</button>
+      <div class="sheet-sec">Betriebsart</div>
+      <div class="modes">${modeOpts}</div>
+      <p class="sheet-note">In den Auto-Modi wählt das Gerät die Stufe selbst. Eine Stufe von Hand zu wählen schaltet auf Manuell.</p>
     </div>
   </dialog>` : '';
 
@@ -735,11 +754,11 @@ ${this._css(dark, restMin > 0)}
         this._closeSheet();
       });
     });
-    this._on('btn-fan-more', () => {
-      this._closeSheet();
-      this.dispatchEvent(new CustomEvent('hass-more-info', {
-        bubbles: true, composed: true, detail: { entityId: ent.fan },
-      }));
+    this._shadow.querySelectorAll('#sheet-stufe [data-mode]').forEach((b) => {
+      b.addEventListener('click', () => {
+        this._hass.callService('fan', 'set_preset_mode', { entity_id: ent.fan, preset_mode: b.dataset.mode });
+        this._closeSheet();
+      });
     });
 
     /* Filtermenü: Quittieren erst, wenn mindestens ein Filter angehakt ist */
@@ -1155,7 +1174,8 @@ MaicoKwlCardEditor.FEATURES = [
   { key: 'fan',          uid: 'lueftung',                   label: 'Knopf „Stufe“ (Auswahlmenü)',
     also: [ { key: 'vol_reduziert', uid: 'volumenstrom_reduziert' },
             { key: 'vol_nenn',      uid: 'volumenstrom_nennlueftung' },
-            { key: 'vol_intensiv',  uid: 'volumenstrom_intensiv' } ] },
+            { key: 'vol_intensiv',  uid: 'volumenstrom_intensiv' },
+            { key: 'betriebsart',   uid: 'betriebsart' } ] },
   { key: 'fehler',       uid: 'fehler',                     label: 'Fehlerhinweis mit Knopf „Quittieren“',
     also: [ { key: 'fehler_reset', uid: 'fehler_reset' } ] },
 ];

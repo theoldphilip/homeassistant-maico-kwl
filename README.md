@@ -325,6 +325,7 @@ entities:
   vol_reduziert: number.maico_ws_300_flat_volumenstrom_reduziert  # m³/h im Stufenmenü
   vol_nenn:      number.maico_ws_300_flat_volumenstrom_nennlueftung
   vol_intensiv:  number.maico_ws_300_flat_volumenstrom_intensiv
+  betriebsart:   sensor.maico_ws_300_flat_betriebsart        # aktive Betriebsart im Stufenmenü
   fehler:       sensor.maico_ws_300_flat_fehler              # Warnhinweis nur bei Fehler
   fehler_reset: button.maico_ws_300_flat_fehler_quittieren   # Knopf „Quittieren“
 filter_warn_days: 30     # optional: ab so vielen Resttagen erscheint der Filter-Hinweis
@@ -366,7 +367,7 @@ Im grafischen Editor gibt es den Abschnitt **Zusatzanzeigen** mit je einer Check
 | Filteranzeige mit „Gewechselt“ | Kachel **Filter** (Resttage; orange ab `filter_warn_days`, Standard 30, rot bei 0). Ab der Schwelle zusätzlich ein orangefarbener Hinweis **„Filterwechsel fällig“** mit Knopf **„Gewechselt“** |
 | Knopf „Sommermodus“ | Knopf mit Zustand **an/aus** – ein Tipp schaltet um |
 | Knopf „Stoßlüftung“ | Knopf löst die Stoßlüftung aus. Solange sie läuft, ist er hervorgehoben und zeigt **„noch 7 min“**, ebenso der Kopf der Karte und die Erklärungszeile |
-| Knopf „Stufe“ | öffnet ein Menü **Schutzlüftung / Reduziert / Nennlüftung / Intensiv** (bei Reduziert, Nennlüftung und Intensiv mit den eingestellten m³/h). Die gewählte Stufe bleibt, bis du sie änderst; für zeitlich begrenzte Intensivlüftung gibt es die Stoßlüftung. Über „Weitere Einstellungen“ erreichst du die Betriebsart |
+| Knopf „Stufe“ | öffnet ein Menü **Schutzlüftung / Reduziert / Nennlüftung / Intensiv** (bei Reduziert, Nennlüftung und Intensiv mit den eingestellten m³/h). Die gewählte Stufe bleibt, bis du sie änderst; für zeitlich begrenzte Intensivlüftung gibt es die Stoßlüftung. Darunter wählst du die **Betriebsart** (Manuell, Auto Sensor, Eco-Zuluft, Eco-Abluft; „Auto Zeit“ und „Aus“ bewusst nicht, dafür gibt es den normalen Lüftungs-Dialog). In den Auto-Modi wählt das Gerät die Stufe selbst; eine Stufe von Hand zu wählen schaltet auf Manuell |
 | Fehlerhinweis mit „Quittieren“ | roter Hinweis **„Fehler am Gerät“** – nur sichtbar, wenn das Gerät einen Fehler meldet; „Quittieren“ setzt den Fehler zurück |
 
 Der Kopf der Karte zeigt die aktuelle Lüftungsstufe. „Kühlt“ und „Bereit“ erscheinen dort nur bei eingeschaltetem Sommermodus, bei laufender Stoßlüftung die Restzeit.
