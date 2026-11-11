@@ -366,7 +366,7 @@ Im grafischen Editor gibt es den Abschnitt **Zusatzanzeigen** mit je einer Check
 | Filteranzeige mit „Gewechselt“ | Kachel **Filter** (Resttage; orange ab `filter_warn_days`, Standard 30, rot bei 0). Ab der Schwelle zusätzlich ein orangefarbener Hinweis **„Filterwechsel fällig“** mit Knopf **„Gewechselt“** |
 | Knopf „Sommermodus“ | Knopf mit Zustand **an/aus** – ein Tipp schaltet um |
 | Knopf „Stoßlüftung“ | Knopf löst die Stoßlüftung aus. Solange sie läuft, ist er hervorgehoben und zeigt **„noch 7 min“**, ebenso der Kopf der Karte und die Erklärungszeile |
-| Knopf „Stufe“ | öffnet ein Menü **Reduziert / Nennlüftung / Intensiv** mit den eingestellten m³/h. Die gewählte Stufe bleibt, bis du sie änderst; für zeitlich begrenzte Intensivlüftung gibt es die Stoßlüftung. Über „Weitere Einstellungen“ erreichst du die Betriebsart |
+| Knopf „Stufe“ | öffnet ein Menü **Schutzlüftung / Reduziert / Nennlüftung / Intensiv** (bei Reduziert, Nennlüftung und Intensiv mit den eingestellten m³/h). Die gewählte Stufe bleibt, bis du sie änderst; für zeitlich begrenzte Intensivlüftung gibt es die Stoßlüftung. Über „Weitere Einstellungen“ erreichst du die Betriebsart |
 | Fehlerhinweis mit „Quittieren“ | roter Hinweis **„Fehler am Gerät“** – nur sichtbar, wenn das Gerät einen Fehler meldet; „Quittieren“ setzt den Fehler zurück |
 
 Der Kopf der Karte zeigt die aktuelle Lüftungsstufe. „Kühlt“ und „Bereit“ erscheinen dort nur bei eingeschaltetem Sommermodus, bei laufender Stoßlüftung die Restzeit.

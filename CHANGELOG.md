@@ -7,7 +7,7 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 
 ### Neu
 - **Karte v2.0.0, Redesign.** Die Chip-Zeile ist einem klaren Aufbau gewichen: Kopf mit Lüftungsstufe und Volumenstrom → Warnhinweise (nur bei Bedarf) → Schema → Kennzahlen (Strom, WRG-Gewinn, Filter) → drei große Bedienknöpfe (Sommermodus, Stoßlüftung, Stufe) → Räume.
-- **Stufenmenü:** Der Knopf „Stufe“ öffnet ein Auswahlmenü (Reduziert / Nennlüftung / Intensiv) mit den eingestellten m³/h; die aktuelle Stufe ist markiert. Über „Weitere Einstellungen“ erreichst du weiterhin die Betriebsart.
+- **Stufenmenü:** Der Knopf „Stufe“ öffnet ein Auswahlmenü (Schutzlüftung / Reduziert / Nennlüftung / Intensiv) mit den eingestellten m³/h; die aktuelle Stufe ist markiert. Über „Weitere Einstellungen“ erreichst du weiterhin die Betriebsart.
 - **Filter quittieren in der Karte:** Ab der Warnschwelle erscheint ein Hinweis „Filterwechsel fällig“ mit Knopf „Gewechselt“. Das Menü quittiert nur die angehakten Filter (Gerät, Außenluft, Raumluft; nur die, die das Gerät hat). Ob das Gerät den Zähler danach zurücksetzt, ist an der Anlage noch nicht bestätigt.
 - **Fehler quittieren in der Karte:** Der rote Fehlerhinweis hat einen Knopf „Quittieren“.
 - **Räume eingeklappt:** Eine Zeile „Räume · 3 Zuluft · 3 Abluft“, ein Tipp klappt die Liste auf.

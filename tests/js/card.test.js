@@ -190,11 +190,15 @@ const header = (e) => (html(e).match(/class="status-chip[^"]*">(?:<svg.*?<\/svg>
   const infos = [];
   const e = mkc(ve, vs);
   e.addEventListener('hass-more-info', (ev) => infos.push(ev.detail.entityId));
-  const sheet = q(e, '#sheet-stufe');
+  let sheet = q(e, '#sheet-stufe');
   const opts = [...sheet.querySelectorAll('[data-pct]')];
-  ok(opts.length === 3 && opts.map((o) => o.dataset.pct).join() === '50,75,100', 'Stufenmenü: drei Stufen (50/75/100 %)');
+  ok(opts.length === 4 && opts.map((o) => o.dataset.pct).join() === '25,50,75,100', 'Stufenmenü: vier Stufen (25/50/75/100 %)');
   ok(sheet.innerHTML.includes('100 m³/h') && sheet.innerHTML.includes('150 m³/h') && sheet.innerHTML.includes('200 m³/h'), 'Stufenmenü: eingestellte m³/h');
-  ok(opts[0].classList.contains('opt-on') && !opts[1].classList.contains('opt-on') && opts[0].innerHTML.includes('<svg'), 'Stufenmenü: aktuelle Stufe markiert');
+  ok(opts[1].classList.contains('opt-on') && !opts[0].classList.contains('opt-on') && !opts[2].classList.contains('opt-on') && opts[1].innerHTML.includes('<svg'), 'Stufenmenü: aktuelle Stufe (Reduziert) markiert');
+  upd(e, { 's.stufe': st('Schutzlüftung') });
+  ok(q(e, '#sheet-stufe [data-pct="25"]').classList.contains('opt-on') && q(e, '#sheet-stufe [data-pct="25"]').textContent.includes('Schutzlüftung'), 'Stufenmenü: Schutzlüftung wählbar und markiert');
+  upd(e, { 's.stufe': st('Reduziert') });
+  sheet = q(e, '#sheet-stufe');
   q(e, '#btn-stufe').click();
   ok(sheet.hasAttribute('open') && e._sheet === 'stufe', 'Stufenmenü öffnet');
   // Während das Menü offen ist, wird nicht neu gezeichnet

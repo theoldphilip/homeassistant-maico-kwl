@@ -78,6 +78,7 @@ const kwlIcon = (name, size = 20) =>
 
 /* Wählbare Lüftungsstufen (Prozent = Wert für fan.set_percentage) */
 const KWL_STAGES = [
+  { id: 'schutz',    label: 'Schutzlüftung', match: 'schutz', pct: 25 },
   { id: 'reduziert', label: 'Reduziert',   match: 'reduz',   pct: 50,  vol: 'vol_reduziert' },
   { id: 'nenn',      label: 'Nennlüftung', match: 'nenn',    pct: 75,  vol: 'vol_nenn' },
   { id: 'intensiv',  label: 'Intensiv',    match: 'intensiv', pct: 100, vol: 'vol_intensiv' },
