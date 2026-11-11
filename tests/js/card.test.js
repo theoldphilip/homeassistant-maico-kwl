@@ -96,6 +96,31 @@ ok(explain('', null) === 'Sommermodus nicht aktiv', 'leerer Status wirft nicht')
   ok(!html(e4).includes('Fehler aktiv'), 'Fehler unavailable: kein Chip');
 }
 
+// v1.7.0: Stoßlüftung-Restzeit, Stufe im Kopf, Hover nur mit Maus
+{
+  const st = (v) => ({ state: v, attributes: {} });
+  const mk2 = (states, extra) => {
+    const e = w.document.createElement('maico-kwl-card');
+    w.document.body.appendChild(e);
+    e.setConfig({ name: 'T', entities: { ...ents, stoss: 'button.stoss', stoss_rest: 's.rest' }, ...extra });
+    e.hass = { states: { ...hass.states, 'button.stoss': st('unknown'), ...states }, callService() {} };
+    return e;
+  };
+  const header = (e) => (html(e).match(/class="status-chip">([^<]*)</) || [])[1];
+  let e7 = mk2({ 's.rest': st('7'), 's.status': st('Inaktiv'), 's.stufe': st('Intensiv') }, { show_explanation: true });
+  ok(header(e7).includes('Stoßlüftung · 7 min'), 'Kopf: Stoßlüftung mit Restzeit (' + header(e7).trim() + ')');
+  ok(html(e7).includes('chip-btn chip-on" id="chip-stoss"') && html(e7).includes('noch 7 min'), 'Chip: aktiv mit Restzeit');
+  ok(html(e7).includes('Stoßlüftung läuft noch 7 min · Sommermodus nicht aktiv'), 'Erklärungszeile mit Restzeit');
+  e7 = mk2({ 's.rest': st('0'), 's.status': st('Inaktiv'), 's.stufe': st('Reduziert') });
+  ok(header(e7).trim() === '💨 Reduziert', 'Kopf bei Sommermodus aus: Stufe statt „Inaktiv“ (' + header(e7).trim() + ')');
+  ok(!html(e7).includes('noch 0 min') && html(e7).includes('💨 Stoßlüftung</button>'), 'Restzeit 0: normaler Chip');
+  e7 = mk2({ 's.rest': st('unavailable'), 's.status': st('Kühlt (Nachtkühlung)') });
+  ok(header(e7).includes('Kühlt'), 'Kühlt bleibt im Kopf');
+  e7 = mk2({ 's.status': st('Inaktiv'), 's.stufe': st('') });
+  ok(header(e7).trim() === '💨 Inaktiv', 'ohne Stufe: Fallback „Inaktiv“');
+  ok(html(e7).includes('@media (hover: hover)'), 'Hover-Rand nur mit Maus');
+}
+
 // Editor
 const ed = w.document.createElement('maico-kwl-card-editor');
 w.document.body.appendChild(ed);
@@ -124,6 +149,8 @@ setTimeout(() => {
       { entity_id: 'sensor.x_filterwechsel', platform: 'maico_kwl', unique_id: 'maico_kwl_filter_restlaufzeit_zuluft', device_id: 'D1' },
       { entity_id: 'sensor.x_leistung', platform: 'maico_kwl', unique_id: 'maico_kwl_leistung', device_id: 'D1' },
       { entity_id: 'sensor.x_wrg_leistung', platform: 'maico_kwl', unique_id: 'maico_kwl_wrg_leistung', device_id: 'D1' },
+      { entity_id: 'button.x_stoss', platform: 'maico_kwl', unique_id: 'maico_kwl_stosslueftung', device_id: 'D1' },
+      { entity_id: 'sensor.x_stoss_rest', platform: 'maico_kwl', unique_id: 'maico_kwl_stosslueftung_restzeit', device_id: 'D1' },
       // zweites Gerät (neues ID-Schema mit Entry-ID) darf nicht verwechselt werden
       { entity_id: 'switch.zweit_sommermodus', platform: 'maico_kwl', unique_id: 'maico_kwl_01ARZ3NDEKTSV4RRFFQ69G5FAV_sommermodus', device_id: 'D2' },
       { entity_id: 'sensor.fremd_leistung', platform: 'andere', unique_id: 'maico_kwl_leistung', device_id: 'D1' },
@@ -147,6 +174,12 @@ setTimeout(() => {
       box('wrg_leistung').checked = true; box('wrg_leistung').dispatchEvent(new w.Event('change'));
       await new Promise(r => setTimeout(r, 30));
       ok(cfg5.entities.wrg_leistung === 'sensor.x_wrg_leistung', 'Auto-Erkennung: WRG-Leistung');
+      box('stoss').checked = true; box('stoss').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(cfg5.entities.stoss === 'button.x_stoss' && cfg5.entities.stoss_rest === 'sensor.x_stoss_rest', 'Auto-Erkennung: Stoßlüftung inkl. Restzeit');
+      box('stoss').checked = false; box('stoss').dispatchEvent(new w.Event('change'));
+      await new Promise(r => setTimeout(r, 30));
+      ok(!('stoss' in cfg5.entities) && !('stoss_rest' in cfg5.entities), 'Abwählen entfernt Stoßlüftung und Restzeit');
       ok(wsCalls === 1, 'Entity-Register wird nur einmal geladen');
       ok(cfg5.entities.status === 'sensor.htr_x_sommermodus_status' && cfg5.name === 'T', 'übrige Config bleibt erhalten');
       ok(!!e5.shadowRoot.querySelector('ha-entity-picker[data-ekey="sommer"]'), 'aktivierte Zusatzanzeige zeigt Picker zum Überschreiben');

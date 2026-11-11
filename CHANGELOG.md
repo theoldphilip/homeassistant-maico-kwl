@@ -3,6 +3,18 @@
 Alle nennenswerten Änderungen an dieser Integration. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Bestehende Installationen werden bei jedem Update automatisch migriert – Entitäten und Entity-IDs bleiben stabil.
 
+## [1.9.2] – 2026-11-11 (Pre-Release)
+
+### Neu
+- **Stoßlüftung: Restzeit.** Neuer Sensor `stosslueftung_restzeit` (Minuten, 0 = keine). Die Karte zeigt „Stoßlüftung · noch 7 min“ im Kopf, im Chip und in der Erklärungszeile. Gilt für über Home Assistant ausgelöste Stoßlüftungen (das Gerät meldet keine Restzeit); endet vorzeitig, wenn die Stufe nicht mehr Intensiv ist.
+- Im Karteneditor findet die Checkbox „Knopf Stoßlüftung“ die Restzeit automatisch mit.
+
+### Geändert
+- **Karte v1.7.0:** Der Kopf zeigt bei ausgeschaltetem Sommermodus die Lüftungsstufe statt „Inaktiv“ (das bezog sich nur auf den Sommermodus und wirkte widersprüchlich). „Kühlt“ und „Bereit“ bleiben bei eingeschaltetem Sommermodus.
+
+### Behoben
+- Karte: Der Rand der Knopf-Chips blieb auf dem Handy nach dem Antippen hängen (Hover-Zustand). Er erscheint jetzt nur noch mit Maus.
+
 ## [1.9.1] – 2026-11-11 (Pre-Release)
 
 ### Neu
@@ -162,6 +174,7 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 
 - Erste Version: Steuerung (Lüftungsstufe + Betriebsart), Sensoren, Filterwarnung, Wärmerückgewinnung und Sommermodus mit Nachtkühlung.
 
+[1.9.2]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.9.1...v1.9.2
 [1.9.1]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.8.0...v1.8.1

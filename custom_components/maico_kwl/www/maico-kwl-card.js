@@ -27,6 +27,7 @@
  *     leistung:     sensor.maico_ws_300_flat_leistung_geschatzt   # optional: Stromleistung (W)
  *     wrg_leistung: sensor.maico_ws_300_flat_warmeruckgewinnung_leistung_geschatzt  # optional
  *     stoss:      button.maico_ws_300_flat_stosslueftung        # optional: Stoßlüftung auslösen
+ *     stoss_rest: sensor.maico_ws_300_flat_stosslueftung_restzeit  # optional: Restzeit der Stoßlüftung
  *     fan:        fan.maico_ws_300_flat_lueftung                # optional: öffnet die Lüftungssteuerung
  *     fehler:     sensor.maico_ws_300_flat_fehler               # optional: Fehleranzeige (nur bei Fehler)
  *   filter_warn_days: 30    # optional: ab wie vielen Resttagen der Filter orange wird
@@ -315,7 +316,7 @@ class MaicoKwlCard extends HTMLElement {
     border: 1px solid var(--divider-color, rgba(0,0,0,.12));
   }
   .chip-btn { cursor: pointer; }
-  .chip-btn:hover { border-color: var(--primary-color); }
+  @media (hover: hover) { .chip-btn:hover { border-color: var(--primary-color); } }
   .chip-on   { color: var(--primary-color); border-color: var(--primary-color); }
   .chip-warn { color: var(--warning-color, #ff9800); border-color: var(--warning-color, #ff9800); }
   .chip-err  { color: var(--error-color, #db4437); border-color: var(--error-color, #db4437); }
@@ -489,6 +490,8 @@ class MaicoKwlCard extends HTMLElement {
       ? Math.round(wrgEnt)
       : this._calcWrg(tZu, tAus, tAb);
     const bypass = ent.bypass ? this._state(ent.bypass) : null;
+    const restRaw = ent.stoss_rest ? this._num(ent.stoss_rest) : null;
+    const restMin = restRaw !== null && restRaw > 0 ? Math.round(restRaw) : 0;
     const feuchte = ent.feuchte ? this._num(ent.feuchte) : null;
 
     /* Optionale Zusatzanzeigen: Filter-Restlaufzeit und Sommermodus-Schalter */
@@ -513,7 +516,9 @@ class MaicoKwlCard extends HTMLElement {
     if (wrgP !== null) chips.push(`<div class="chip">🔥 WRG +${Math.round(wrgP)} W</div>`);
     const known = (id) => id && this._hass && this._hass.states[id];
     if (known(ent.stoss)) {
-      chips.push(`<button class="chip chip-btn" id="chip-stoss" title="Stoßlüftung starten">💨 Stoßlüftung</button>`);
+      chips.push(restMin > 0
+        ? `<button class="chip chip-btn chip-on" id="chip-stoss" title="Stoßlüftung erneut starten">💨 Stoßlüftung · noch ${restMin} min</button>`
+        : `<button class="chip chip-btn" id="chip-stoss" title="Stoßlüftung starten">💨 Stoßlüftung</button>`);
     }
     if (known(ent.fan)) {
       chips.push(`<button class="chip chip-btn" id="chip-fan" title="Lüftungsstufe ändern">🌀 Lüftung</button>`);
@@ -525,10 +530,11 @@ class MaicoKwlCard extends HTMLElement {
 
     /* Status-Chip */
     const cooling     = status.includes('Kühlt');
-    const statusLabel = cooling           ? 'Kühlt'
-                      : status.includes('Bereit')   ? 'Bereit'
-                      : status.includes('Inaktiv')  ? 'Inaktiv'
-                      : stufe || status.split(' – ')[0] || '—';
+    /* „Inaktiv“ meint nur den Sommermodus – im Kopf besser die Lüftungsstufe zeigen */
+    const statusLabel = restMin > 0               ? `Stoßlüftung · ${restMin} min`
+                      : cooling                   ? 'Kühlt'
+                      : status.includes('Bereit') ? 'Bereit'
+                      : stufe || (status.includes('Inaktiv') ? 'Inaktiv' : status.split(' – ')[0]) || '—';
     const statusIcon  = cooling ? '❄' : '💨';
 
     /* Sub-Info-Zeile */
@@ -537,7 +543,8 @@ class MaicoKwlCard extends HTMLElement {
 
     /* Erklärungszeile (optional: show_explanation) */
     const explain = cfg.show_explanation
-      ? this._explain(status, tAus, tAb, bypass)
+      ? [restMin > 0 ? `Stoßlüftung läuft noch ${restMin} min` : '',
+         this._explain(status, tAus, tAb, bypass)].filter(Boolean).join(' · ')
       : '';
 
     /* Räume */
@@ -965,6 +972,7 @@ class MaicoKwlCardEditor extends HTMLElement {
           const entities = { ...(this._config.entities || {}) };
           if (!ev.target.checked) {
             delete entities[key];
+            if (feat.also) delete entities[feat.also.key];
             delete this._missing[key];
             this._config = { ...this._config, entities };
             this._render();
@@ -978,6 +986,10 @@ class MaicoKwlCardEditor extends HTMLElement {
           if (id) {
             delete this._missing[key];
             this._config = { ...this._config, entities: { ...this._config.entities, [key]: id } };
+            if (feat.also) {
+              const rid = await this._resolveFeature(feat.also.uid);
+              if (rid) this._config = { ...this._config, entities: { ...this._config.entities, [feat.also.key]: rid } };
+            }
           } else {
             this._missing[key] = true;
           }
@@ -1041,7 +1053,7 @@ MaicoKwlCardEditor.FEATURES = [
   { key: 'sommer',       uid: 'sommermodus',                label: 'Sommermodus-Schalter' },
   { key: 'leistung',     uid: 'leistung',                   label: 'Stromleistung (geschätzt)' },
   { key: 'wrg_leistung', uid: 'wrg_leistung',               label: 'Wärmegewinn der Wärmerückgewinnung' },
-  { key: 'stoss',        uid: 'stosslueftung',              label: 'Knopf „Stoßlüftung“' },
+  { key: 'stoss',        uid: 'stosslueftung',              label: 'Knopf „Stoßlüftung“ (mit Restzeit)', also: { key: 'stoss_rest', uid: 'stosslueftung_restzeit' } },
   { key: 'fan',          uid: 'lueftung',                   label: 'Knopf „Lüftung“ (Stufen ändern)' },
   { key: 'fehler',       uid: 'fehler',                     label: 'Fehleranzeige (nur bei Fehler)' },
 ];
@@ -1064,7 +1076,7 @@ if (!customElements.get('maico-kwl-card-editor')) {
 }
 
 console.info(
-  '%c MAICO-KWL-CARD %c v1.6.0 ',
+  '%c MAICO-KWL-CARD %c v1.7.0 ',
   'background:#1A74AF;color:#fff;padding:2px 4px;border-radius:3px 0 0 3px;font-weight:bold',
   'background:#157A5A;color:#fff;padding:2px 4px;border-radius:0 3px 3px 0'
 );

@@ -1,5 +1,6 @@
 """Data coordinator for Maico KWL."""
 import logging
+import math
 from datetime import timedelta, datetime, timezone
 from typing import Any, Dict
 
@@ -75,6 +76,7 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
         # Timestamp until which a manually triggered Stoßlüftung is active.
         # While set and in the future, the summer logic stands down.
         self._boost_until: datetime | None = None
+        self._boost_started: datetime | None = None
         # Human-readable status for the status sensor / notifications.
         self.summer_status: str = "Inaktiv"
 
@@ -541,6 +543,26 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Error writing %s: %s", register_key, err)
             raise
 
+    @property
+    def boost_remaining_minutes(self) -> int:
+        """Verbleibende Minuten einer über Home Assistant ausgelösten Stoßlüftung (0 = keine).
+
+        Beruht auf dem Auslösezeitpunkt und der eingestellten Dauer (R153). Eine am
+        Gerät oder in der Maico-App gestartete Stoßlüftung ist daher nicht sichtbar.
+        Ist die Lüftungsstufe nach der Anlaufzeit nicht mehr „Intensiv“, gilt die
+        Stoßlüftung als vorzeitig beendet.
+        """
+        until, started = self._boost_until, self._boost_started
+        if until is None or started is None:
+            return 0
+        now = datetime.now(timezone.utc)
+        if now >= until:
+            return 0
+        if (now - started).total_seconds() > 120 and self.data is not None:
+            if self.data.get("lueftungsstufe") != 4:  # 4 = Intensiv
+                return 0
+        return max(1, math.ceil((until - now).total_seconds() / 60.0))
+
     async def async_trigger_stosslueftung(self):
         """Trigger boost ventilation (551 = 1).
 
@@ -553,8 +575,11 @@ class MaicoKWLCoordinator(DataUpdateCoordinator):
             d = self.data.get("dauer_lueftungsstufe")
             if isinstance(d, (int, float)) and d > 0:
                 minutes = int(d)
-        self._boost_until = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+        self._boost_started = datetime.now(timezone.utc)
+        self._boost_until = self._boost_started + timedelta(minutes=minutes)
         await self.async_write_raw("stosslueftung", 1)
+        # Restzeit-Sensor sofort aktualisieren, nicht erst beim nächsten Abruf
+        self.async_update_listeners()
 
     async def async_set_temp_register(self, register_key: str, celsius: float):
         """Write a temperature setpoint, scaling per the profile.

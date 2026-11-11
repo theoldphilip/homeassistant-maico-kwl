@@ -260,3 +260,37 @@ async def test_filter_issue_already_due_at_startup(hass):
     from homeassistant.helpers import issue_registry as ir
     e = await setup(hass, filter_warning_days=200)   # Restlaufzeit 165 <= 200
     assert ir.async_get(hass).async_get_issue(DOMAIN, f"filter_due_{e.entry_id}") is not None
+
+
+async def test_boost_remaining_sensor(hass):
+    """Restzeit der Stoßlüftung: läuft herunter, endet bei Ablauf oder wenn die Stufe nicht Intensiv bleibt."""
+    from datetime import timedelta
+    from homeassistant.util import dt as dt_util
+    e = await setup(hass)
+    reg = er.async_get(hass)
+    ent_id = next(x.entity_id for x in er.async_entries_for_config_entry(reg, e.entry_id)
+                  if x.original_name == "Stoßlüftung Restzeit")
+    btn = next(x.entity_id for x in er.async_entries_for_config_entry(reg, e.entry_id)
+               if x.original_name == "Stoßlüftung")
+    coord = hass.data[DOMAIN][e.entry_id]["coordinator"]
+    assert hass.states.get(ent_id).state == "0"
+
+    t0 = dt_util.utcnow()
+    with patch("custom_components.maico_kwl.coordinator.datetime") as dtm:
+        dtm.now.return_value = t0
+        await hass.services.async_call("button", "press", {"entity_id": btn}, blocking=True)
+        await hass.async_block_till_done()
+        assert hass.states.get(ent_id).state == "10"        # Dauer R153 = 10 min, sofort sichtbar
+        coord.data = {**coord.data, "lueftungsstufe": 4}
+        dtm.now.return_value = t0 + timedelta(minutes=4, seconds=10)
+        assert coord.boost_remaining_minutes == 6
+        dtm.now.return_value = t0 + timedelta(minutes=9, seconds=50)
+        assert coord.boost_remaining_minutes == 1
+        dtm.now.return_value = t0 + timedelta(minutes=10, seconds=1)
+        assert coord.boost_remaining_minutes == 0
+        # Stufe nicht mehr Intensiv (nach 2 min Anlaufzeit) -> vorzeitig beendet
+        coord.data = {**coord.data, "lueftungsstufe": 2}
+        dtm.now.return_value = t0 + timedelta(seconds=60)
+        assert coord.boost_remaining_minutes == 9           # innerhalb der Anlaufzeit noch gezählt
+        dtm.now.return_value = t0 + timedelta(minutes=3)
+        assert coord.boost_remaining_minutes == 0

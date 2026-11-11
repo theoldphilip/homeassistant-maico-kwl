@@ -89,6 +89,7 @@ async def async_setup_entry(
 
         # Sommermodus-Status
         MaicoKWLSummerStatusSensor(coordinator, config_entry),
+        MaicoKWLBoostRemainingSensor(coordinator, config_entry),
 
         # Stromverbrauch (Schätzung aus SPI-Wert)
         MaicoKWLPowerSensor(coordinator, config_entry),
@@ -536,6 +537,30 @@ class MaicoKWLSummerStatusSensor(MaicoKWLBaseSensor):
     def native_value(self) -> str | None:
         """Return the human-readable summer mode status."""
         return getattr(self.coordinator, "summer_status", None)
+
+
+class MaicoKWLBoostRemainingSensor(MaicoKWLBaseSensor):
+    """Restzeit einer laufenden Stoßlüftung in Minuten (0 = keine aktiv).
+
+    Gilt für Stoßlüftungen, die über Home Assistant (Button) ausgelöst wurden.
+    """
+
+    _attr_native_unit_of_measurement = "min"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:timer-sand"
+
+    def __init__(self, coordinator: MaicoKWLCoordinator, config_entry: ConfigEntry):
+        super().__init__(coordinator, config_entry, "stosslueftung_restzeit", "Stoßlüftung Restzeit")
+
+    @property
+    def native_value(self) -> int:
+        return self.coordinator.boost_remaining_minutes
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return {
+            "hinweis": "Nur für über Home Assistant ausgelöste Stoßlüftungen; Dauer laut Einstellung „Dauer Stoßlüftung“",
+        }
 
 
 class MaicoKWLPowerSensor(MaicoKWLBaseSensor):

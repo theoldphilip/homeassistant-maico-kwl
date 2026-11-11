@@ -117,6 +117,7 @@ Bei Problemen hilft ein Diagnose-Dump: **Einstellungen → Geräte & Dienste →
 | `maico_kwl_sommermodus_status` | Status des Sommermodus (Text) |
 | `maico_kwl_leistung` | Geschätzte Leistungsaufnahme (W) |
 | `maico_kwl_energie` | Geschätzter Energieverbrauch (kWh, für Energie-Dashboard) |
+| `maico_kwl_stosslueftung_restzeit` | Restzeit einer über Home Assistant ausgelösten Stoßlüftung (min, 0 = keine) |
 | `maico_kwl_wrg_leistung` | Geschätzte zurückgewonnene Wärmeleistung (W) |
 | `maico_kwl_wrg_energie` | Geschätzte zurückgewonnene Wärmeenergie (kWh, Zähler) |
 
@@ -312,6 +313,7 @@ entities:
   leistung:     sensor.maico_ws_300_flat_leistung_geschatzt  # Stromleistung (W)
   wrg_leistung: sensor.maico_ws_300_flat_warmeruckgewinnung_leistung_geschatzt
   stoss:        button.maico_ws_300_flat_stosslueftung       # Stoßlüftung auslösen
+  stoss_rest:   sensor.maico_ws_300_flat_stosslueftung_restzeit  # Restzeit (wird mit „stoss“ gefunden)
   fan:          fan.maico_ws_300_flat_lueftung               # öffnet die Lüftungssteuerung
   fehler:       sensor.maico_ws_300_flat_fehler              # Anzeige nur bei Fehler
 filter_warn_days: 30     # optional: ab so vielen Resttagen wird die Filteranzeige orange
@@ -350,9 +352,13 @@ Im grafischen Editor gibt es den Abschnitt **Zusatzanzeigen** mit je einer Check
 | Sommermodus-Schalter | **☀ Sommermodus an/aus** – ein Tipp schaltet um |
 | Stromleistung | **⚡ 26 W** (geschätzte Leistungsaufnahme) |
 | Wärmegewinn der WRG | **🔥 WRG +703 W** (siehe [Zurückgewonnene Wärme](#zurückgewonnene-wärme-schätzung)) |
-| Knopf „Stoßlüftung“ | **💨 Stoßlüftung** – löst die Stoßlüftung aus |
+| Knopf „Stoßlüftung“ (mit Restzeit) | **💨 Stoßlüftung** – löst die Stoßlüftung aus. Solange sie läuft, steht dort **„noch 7 min“**, ebenso im Kopf der Karte und in der Erklärungszeile |
 | Knopf „Lüftung“ | **🌀 Lüftung** – öffnet die Steuerung, in der du die Lüftungsstufe ändern kannst |
 | Fehleranzeige | **⚠ Fehler aktiv** – nur sichtbar, wenn das Gerät einen Fehler meldet |
+
+Der Kopf der Karte zeigt die aktuelle Lüftungsstufe. „Kühlt“ und „Bereit“ erscheinen dort nur bei eingeschaltetem Sommermodus, bei laufender Stoßlüftung die Restzeit.
+
+Die Restzeit gilt nur für Stoßlüftungen, die über Home Assistant (Button oder Karte) ausgelöst wurden. Eine am Gerät oder in der Maico-App gestartete Stoßlüftung ist nicht sichtbar, weil das Gerät keine Restzeit meldet. Nach einem Neustart von Home Assistant beginnt die Zählung neu.
 
 Die automatische Suche braucht Administratorrechte (der Editor ist ohnehin nur für Administratoren). Findet sie eine Entität nicht, erscheint ein Hinweis und du wählst sie von Hand aus. Ohne angehakte Zusatzanzeigen ändert sich an der Karte nichts.
 
