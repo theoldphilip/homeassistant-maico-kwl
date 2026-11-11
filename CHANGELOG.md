@@ -3,7 +3,7 @@
 Alle nennenswerten Änderungen an dieser Integration. Format angelehnt an [Keep a Changelog](https://keepachangelog.com/de/1.1.0/).
 Bestehende Installationen werden bei jedem Update automatisch migriert – Entitäten und Entity-IDs bleiben stabil.
 
-## [1.10.0] – 2026-11-11 (Pre-Release)
+## [2.0.0] – 2026-11-11
 
 ### Neu
 - **Karte v2.0.0, Redesign.** Die Chip-Zeile ist einem klaren Aufbau gewichen: Kopf mit Lüftungsstufe und Volumenstrom → Warnhinweise (nur bei Bedarf) → Schema → Kennzahlen (Strom, WRG-Gewinn, Filter) → drei große Bedienknöpfe (Sommermodus, Stoßlüftung, Stufe) → Räume.
@@ -184,7 +184,7 @@ Bestehende Installationen werden bei jedem Update automatisch migriert – Entit
 
 - Erste Version: Steuerung (Lüftungsstufe + Betriebsart), Sensoren, Filterwarnung, Wärmerückgewinnung und Sommermodus mit Nachtkühlung.
 
-[1.10.0]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.9.1...v1.10.0
+[2.0.0]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.9.1...v2.0.0
 [1.9.1]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/theoldphilip/homeassistant-maico-kwl/compare/v1.8.0...v1.8.1
